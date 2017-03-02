@@ -55,6 +55,8 @@ dependencies {
 
     compile project(':commons')
     compile project(':empalink-2.0')
+    compile project(':vsm-5.1.0-release')
+    compile project(':hevs-ble-library-0.8.1-release')
 
     testCompile 'org.apache.kafka:kafka-clients:0.10.1.1'
     testCompile 'junit:junit:4.12'

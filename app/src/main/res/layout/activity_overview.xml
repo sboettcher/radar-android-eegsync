@@ -147,8 +147,8 @@
                         style="@style/DeviceNameColumn"
                         android:text="@string/emptyText" />
 
-                    <FrameLayout android:layout_height="match_parent"
-                        android:layout_width="match_parent">
+                    <FrameLayout android:layout_width="match_parent"
+                                 android:layout_height="match_parent">
                         <View
                             android:id="@+id/statusRow2"
                             style="@style/StatusCircle"
@@ -156,7 +156,7 @@
                     </FrameLayout>
 
                     <FrameLayout android:layout_width="match_parent"
-                        android:layout_height="match_parent">
+                                 android:layout_height="match_parent">
                         <ImageView
                             android:id="@+id/batteryRow2"
                             style="@style/BatteryColumn"
@@ -175,14 +175,16 @@
 
                     <TextView
                         android:id="@+id/accelerationRow2"
-                        style="@style/NumberColumn"
-                        android:text="@string/emptyText" />
+                        style="@style/DisabledColumn"
+                        android:text="@string/disabledText" />
 
                     <Button
                         android:id="@+id/inputDeviceNameButtonRow2"
                         style="@style/ButtonInputColumn"
-                        android:text="@string/button_input"
-                        android:onClick="dialogInputDeviceName" />
+                        android:text="@string/disabledText"
+                        android:onClick="dialogInputDeviceName"
+                        android:clickable="false"
+                        android:enabled="false" />
 
                     <Button
                         android:id="@+id/refreshButtonRow2"
@@ -194,6 +196,7 @@
                         android:id="@+id/recordsSentRow2"
                         style="@style/NumberColumn"
                         android:text="@string/emptyText" />
+
                 </TableRow>
 
                 <TableRow
@@ -261,6 +264,8 @@
                         style="@style/NumberColumn"
                         android:text="@string/emptyText" />
                 </TableRow>
+
+
 
                 <TableRow
                     android:id="@+id/row4"

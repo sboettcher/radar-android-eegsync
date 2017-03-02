@@ -36,6 +36,9 @@ import org.radarcns.android.DeviceServiceConnection;
 import org.radarcns.android.DeviceStatusListener;
 import org.radarcns.application.ApplicationStatusService;
 import org.radarcns.application.ApplicationState;
+import org.radarcns.biovotionVSM.BiovotionDeviceStatus;
+import org.radarcns.biovotionVSM.BiovotionHeartbeatToast;
+import org.radarcns.biovotionVSM.BiovotionService;
 import org.radarcns.empaticaE4.E4DeviceStatus;
 import org.radarcns.empaticaE4.E4HeartbeatToast;
 import org.radarcns.empaticaE4.E4Service;
@@ -88,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
     /** Defines callbacks for service binding, passed to bindService() */
     private final DeviceServiceConnection<E4DeviceStatus> mE4Connection;
     private final DeviceServiceConnection<Pebble2DeviceStatus> pebble2Connection;
+    private final DeviceServiceConnection<BiovotionDeviceStatus> biovotionConnection;
     private final DeviceServiceConnection<PhoneState> phoneConnection;
     private final DeviceServiceConnection<ApplicationState> appStatusConnection;
     private final BroadcastReceiver bluetoothReceiver;
@@ -127,6 +131,10 @@ public class MainActivity extends AppCompatActivity {
         configureServiceExtras(bundle);
     }
 
+    private void configureBiovotion(Bundle bundle) {
+        configureServiceExtras(bundle);
+    }
+
     private void configureServiceExtras(Bundle bundle) {
         // Add the default configuration parameters given to the service intents
         radarConfiguration.putExtras(bundle,
@@ -141,8 +149,9 @@ public class MainActivity extends AppCompatActivity {
         mE4Connection = new DeviceServiceConnection<>(this, E4DeviceStatus.CREATOR, E4Service.class.getName());
         pebble2Connection = new DeviceServiceConnection<>(this, Pebble2DeviceStatus.CREATOR, Pebble2Service.class.getName());
         phoneConnection = new DeviceServiceConnection<>(this, PhoneState.CREATOR, PhoneSensorsService.class.getName());
+        biovotionConnection = new DeviceServiceConnection<>(this, BiovotionDeviceStatus.CREATOR, BiovotionService.class.getName());
         appStatusConnection = new DeviceServiceConnection<>(this, ApplicationState.CREATOR, ApplicationStatusService.class.getName());
-        mConnections = new DeviceServiceConnection[] {mE4Connection, null, pebble2Connection, phoneConnection, appStatusConnection};
+        mConnections = new DeviceServiceConnection[] {mE4Connection, biovotionConnection, pebble2Connection, phoneConnection, appStatusConnection};
         mConnectionIsBound = new boolean[] {false, false, false, false, false};
         serverStatus = null;
 
@@ -168,6 +177,15 @@ public class MainActivity extends AppCompatActivity {
 
                     mE4Connection.bind(e4serviceIntent);
                     mConnectionIsBound[0] = true;
+                }
+                if (!mConnectionIsBound[1]) {
+                    Intent biovotionIntent = new Intent(MainActivity.this, BiovotionService.class);
+                    Bundle extras = new Bundle();
+                    configureBiovotion(extras);
+                    biovotionIntent.putExtras(extras);
+
+                    biovotionConnection.bind(biovotionIntent);
+                    mConnectionIsBound[1] = true;
                 }
                 if (!mConnectionIsBound[2]) {
                     Intent pebble2Intent = new Intent(MainActivity.this, Pebble2Service.class);
@@ -301,6 +319,11 @@ public class MainActivity extends AppCompatActivity {
                         Bundle bundle = new Bundle();
                         configureEmpatica(bundle);
                         mE4Connection.updateConfiguration(bundle);
+                    }
+                    if (mConnectionIsBound[1]) {
+                        Bundle bundle = new Bundle();
+                        configureBiovotion(bundle);
+                        biovotionConnection.updateConfiguration(bundle);
                     }
                     if (mConnectionIsBound[2]) {
                         Bundle bundle = new Bundle();
@@ -578,6 +601,8 @@ public class MainActivity extends AppCompatActivity {
                         new E4HeartbeatToast(MainActivity.this).execute(connection);
                     } else if (connection == pebble2Connection) {
                         new Pebble2HeartbeatToast(MainActivity.this).execute(connection);
+                    } else if (connection == biovotionConnection) {
+                        new BiovotionHeartbeatToast(MainActivity.this).execute(connection);
                     }
                 } catch (RemoteException e) {
                     logger.warn("Failed to update view with device data");
