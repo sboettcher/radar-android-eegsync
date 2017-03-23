@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.radarcns.biovotion" >
+    <uses-feature android:name="android.hardware.bluetooth"/>
+    <uses-feature android:name="android.hardware.bluetooth_le"/>
+
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+
+    <application android:allowBackup="true">
+        <service android:name="org.radarcns.biovotion.BiovotionService"/>
+    </application>
+</manifest>

@@ -18,6 +18,7 @@ obj/
 # Built application files
 *.apk
 *.ap_
+*.aar
 
 # Generated files
 bin/

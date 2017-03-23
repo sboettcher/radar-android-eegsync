@@ -1,5 +1,0 @@
-include ':app', ':avro'
-include ':empalink-2.0'
-include ':vsm-5.1.0-release'
-include ':hevs-ble-library-0.8.1-release'
-include ':commons'
