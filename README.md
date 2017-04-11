@@ -1,6 +1,6 @@
 # Biovotion RADAR-pRMT plugin
 
-Biovotion VSM plugin for the RADAR-AndroidApplication app, to be run on an Android 4.4 (or later) device with Bluetooth Low Energy (Bluetooth 4.0 or later), to interact with wearable devices.
+Biovotion VSM plugin for the RADAR-AndroidApplication app, to be run on an Android 4.4 (or later) device with Bluetooth Low Energy (Bluetooth 4.0 or later), to interact with Biovotion VSM devices.
 
 ## Installation
 
