@@ -35,6 +35,8 @@ import org.radarcns.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -51,6 +53,8 @@ import ch.hevs.biovotion.vsm.protocol.stream.StreamValue;
 import ch.hevs.biovotion.vsm.protocol.stream.units.Algo1;
 import ch.hevs.biovotion.vsm.protocol.stream.units.Algo2;
 import ch.hevs.biovotion.vsm.protocol.stream.units.BatteryState;
+import ch.hevs.biovotion.vsm.protocol.stream.units.LedCurrent;
+import ch.hevs.biovotion.vsm.protocol.stream.units.RawAlgo;
 import ch.hevs.biovotion.vsm.protocol.stream.units.RawBoard;
 import ch.hevs.biovotion.vsm.stream.StreamController;
 import ch.hevs.biovotion.vsm.stream.StreamListener;
@@ -363,6 +367,42 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         logger.error("Biovotion VSM Parameter read error, id={}", id);
     }
 
+
+    /**
+     * make a new GAP request
+     * @param gap_type data type of GAP request
+     * @param gap_start counter value from where to begin (backwards, e.g. last counter)
+     * @param gap_range number of records to get
+     * @return write request success
+     */
+    public boolean gapRequest(int gap_type, int gap_start, int gap_range) {
+        // get byte arrays for request value
+        byte[] ba_gap_type = new byte[] {(byte) gap_type};
+        byte[] ba_gap_start = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(gap_start).array();
+        byte[] ba_gap_range = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(gap_range).array();
+
+        // build the complete request value byte array
+        byte[] ba_gap_req_value = new byte[ba_gap_type.length + ba_gap_start.length + ba_gap_range.length];
+        System.arraycopy(ba_gap_type, 0, ba_gap_req_value, 0, ba_gap_type.length);
+        System.arraycopy(ba_gap_start, 0, ba_gap_req_value, ba_gap_type.length, ba_gap_start.length);
+        System.arraycopy(ba_gap_range, 0, ba_gap_req_value, ba_gap_type.length + ba_gap_start.length, ba_gap_range.length);
+
+        // send the request
+        logger.info("Biovotion VSM GAP request value: {}",  bytesToHex(ba_gap_req_value));
+        final Parameter gap_req = Parameter.fromBytes(17, ba_gap_req_value);
+        return vsmParameterController.writeRequest(gap_req);
+    }
+
+    public static String bytesToHex(byte[] in) {
+        final StringBuilder builder = new StringBuilder();
+        for(byte b : in) {
+            builder.append(String.format("%02x ", b));
+        }
+        return builder.toString();
+    }
+
+
+
     /*
      * StreamListener interface
      */
@@ -441,7 +481,16 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
                 dataHandler.addMeasurement(temperatureTable, deviceStatus.getId(), tempValue);
                 dataHandler.addMeasurement(gsrTable, deviceStatus.getId(), gsrValue);
                 break;
-        }
 
+            case RawAlgo:
+                RawAlgo rawalgo = (RawAlgo) unit.unit;
+                logger.info("GAP RawAlgo nbrUnits: {}", rawalgo.nbrUnits);
+                break;
+
+            case LedCurrent:
+                LedCurrent ledcurrent = (LedCurrent) unit.unit;
+                logger.info("Biovotion VSM LedCurrent: red:{} | green:{} | ir:{} | offset:{}", ledcurrent.red, ledcurrent.green, ledcurrent.ir, ledcurrent.offset);
+                break;
+        }
     }
 }
