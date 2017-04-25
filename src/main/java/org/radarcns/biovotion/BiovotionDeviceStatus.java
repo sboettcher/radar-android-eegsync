@@ -44,6 +44,10 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
 
     private float[] galvanicSkinResponse = {Float.NaN, Float.NaN};
 
+    private float[] acceleration = {Float.NaN, Float.NaN, Float.NaN};
+
+    private float[] ledCurrent = {Float.NaN, Float.NaN, Float.NaN, Float.NaN};
+
     public static final Parcelable.Creator<BiovotionDeviceStatus> CREATOR = new DeviceStateCreator<>(BiovotionDeviceStatus.class);
 
     @Override
@@ -70,6 +74,13 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
         dest.writeFloat(this.temperature[2]);
         dest.writeFloat(this.galvanicSkinResponse[0]);
         dest.writeFloat(this.galvanicSkinResponse[1]);
+        dest.writeFloat(this.acceleration[0]);
+        dest.writeFloat(this.acceleration[1]);
+        dest.writeFloat(this.acceleration[2]);
+        dest.writeFloat(this.ledCurrent[0]);
+        dest.writeFloat(this.ledCurrent[1]);
+        dest.writeFloat(this.ledCurrent[2]);
+        dest.writeFloat(this.ledCurrent[3]);
     }
 
     public void updateFromParcel(Parcel in) {
@@ -95,6 +106,13 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
         temperature[2] = in.readFloat();
         galvanicSkinResponse[0] = in.readFloat();
         galvanicSkinResponse[1] = in.readFloat();
+        acceleration[0] = in.readFloat();
+        acceleration[1] = in.readFloat();
+        acceleration[2] = in.readFloat();
+        ledCurrent[0] = in.readFloat();
+        ledCurrent[1] = in.readFloat();
+        ledCurrent[2] = in.readFloat();
+        ledCurrent[3] = in.readFloat();
     }
 
 
@@ -128,6 +146,18 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
     public float[] getTemperatureAll() { return temperature; }
 
     public float[] getGalvanicSkinResponse() { return galvanicSkinResponse; }
+
+    @Override
+    public boolean hasAcceleration() {
+        return true;
+    }
+    public float[] getAcceleration() {
+        return acceleration;
+    }
+
+    public float[] getLedCurrent() {
+        return ledCurrent;
+    }
 
 
 
@@ -181,5 +211,18 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
     public void setGalvanicSkinResponse(float amp, float phase) {
         this.galvanicSkinResponse[0] = amp / 3000.0f;
         this.galvanicSkinResponse[1] = phase;
+    }
+
+    public void setAcceleration(float x, float y, float z) {
+        this.acceleration[0] = x;
+        this.acceleration[1] = y;
+        this.acceleration[2] = z;
+    }
+
+    public void setLedCurrent(float red, float green, float ir, float offset) {
+        this.ledCurrent[0] = red;
+        this.ledCurrent[1] = green;
+        this.ledCurrent[2] = ir;
+        this.ledCurrent[3] = offset;
     }
 }

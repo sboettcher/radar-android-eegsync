@@ -75,7 +75,7 @@ public class BiovotionService extends DeviceService {
                 topics.getBatteryStateTopic(), topics.getBloodPulseWaveTopic(),
                 topics.getSpO2Topic(), topics.getHeartRateTopic(), topics.getHrvTopic(),
                 topics.getRrTopic(), topics.getEnergyTopic(), topics.getTemperatureTopic(),
-                topics.getGsrTopic());
+                topics.getGsrTopic(), topics.getAccelerationTopic(), topics.getLedCurrentTopic());
     }
 
     @Override

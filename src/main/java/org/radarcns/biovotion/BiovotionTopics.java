@@ -31,6 +31,8 @@ public class BiovotionTopics extends DeviceTopics {
     private final AvroTopic<MeasurementKey, BiovotionVSMEnergy> energyTopic;
     private final AvroTopic<MeasurementKey, BiovotionVSMTemperature> temperatureTopic;
     private final AvroTopic<MeasurementKey, BiovotionVSMGalvanicSkinResponse> gsrTopic;
+    private final AvroTopic<MeasurementKey, BiovotionVSMAcceleration> accelerationTopic;
+    private final AvroTopic<MeasurementKey, BiovotionVSMLedCurrent> ledCurrentTopic;
 
     private static final Object syncObject = new Object();
     private static BiovotionTopics instance = null;
@@ -72,6 +74,12 @@ public class BiovotionTopics extends DeviceTopics {
         gsrTopic = createTopic("android_biovotion_galvanic_skin_response",
                 BiovotionVSMGalvanicSkinResponse.getClassSchema(),
                 BiovotionVSMGalvanicSkinResponse.class);
+        accelerationTopic = createTopic("android_biovotion_acceleration",
+                BiovotionVSMAcceleration.getClassSchema(),
+                BiovotionVSMAcceleration.class);
+        ledCurrentTopic = createTopic("android_biovotion_led_current",
+                BiovotionVSMLedCurrent.getClassSchema(),
+                BiovotionVSMLedCurrent.class);
     }
 
     public AvroTopic<MeasurementKey, BiovotionVSMBatteryState> getBatteryStateTopic() {
@@ -108,5 +116,13 @@ public class BiovotionTopics extends DeviceTopics {
 
     public AvroTopic<MeasurementKey, BiovotionVSMGalvanicSkinResponse> getGsrTopic() {
         return gsrTopic;
+    }
+
+    public AvroTopic<MeasurementKey, BiovotionVSMAcceleration> getAccelerationTopic() {
+        return accelerationTopic;
+    }
+
+    public AvroTopic<MeasurementKey, BiovotionVSMLedCurrent> getLedCurrentTopic() {
+        return ledCurrentTopic;
     }
 }
