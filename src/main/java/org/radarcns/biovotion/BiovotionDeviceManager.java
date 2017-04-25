@@ -250,8 +250,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     public void onVsmDeviceConnectionError(@NonNull VsmDevice device, VsmConnectionState errorState) {
         logger.error("Biovotion VSM device connection error: {}", errorState.toString());
         updateStatus(DeviceStatusListener.Status.DISCONNECTED);
-        vsmDevice.removeListeners();
-        vsmStreamController.removeListeners();
+        if (vsmDevice != null) vsmDevice.removeListeners();
+        if (vsmStreamController != null) vsmStreamController.removeListeners();
         vsmStreamController = null;
     }
 
@@ -259,8 +259,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     public void onVsmDeviceDisconnected(@NonNull VsmDevice device, int statusCode) {
         logger.warn("Biovotion VSM device disconnected. ({})", statusCode);
         updateStatus(DeviceStatusListener.Status.DISCONNECTED);
-        vsmDevice.removeListeners();
-        vsmStreamController.removeListeners();
+        if (vsmDevice != null) vsmDevice.removeListeners();
+        if (vsmStreamController != null) vsmStreamController.removeListeners();
         vsmStreamController = null;
     }
 
@@ -329,32 +329,30 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             case BatteryState:
                 BatteryState battery = (BatteryState) unit.unit;
                 logger.info("Biovotion VSM battery state: cap:{} rate:{} voltage:{} state:{}", battery.capacity, battery.chargeRate, battery.voltage/10.0f, battery.state);
-                deviceStatus.setBatteryLevel(battery.capacity);
-                deviceStatus.setBatteryChargeRate(battery.chargeRate);
-                deviceStatus.setBatteryVoltage(battery.voltage);
-                deviceStatus.setBatteryStatus(battery.state);
+                deviceStatus.setBattery(battery.capacity, battery.chargeRate, battery.voltage, battery.state);
+                float[] latestBattery = deviceStatus.getBattery();
 
                 BiovotionVSMBatteryState value = new BiovotionVSMBatteryState((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getBatteryLevel(), deviceStatus.getBatteryChargeRate(), deviceStatus.getBatteryVoltage(), deviceStatus.getBatteryStatus());
+                        latestBattery[0], latestBattery[1], latestBattery[2], latestBattery[3]);
 
                 dataHandler.trySend(batteryTopic, 0L, deviceStatus.getId(), value);
                 break;
 
             case Algo1:
                 Algo1 algo1 = (Algo1) unit.unit;
-                deviceStatus.setBloodPulseWave(algo1.bloodPulseWave);
-                deviceStatus.setBloodPulseWaveQuality(0); // not available in algo1
-                deviceStatus.setSpO2(algo1.spO2);
-                deviceStatus.setSpO2Quality(algo1.spO2Quality);
-                deviceStatus.setHeartRate(algo1.hr);
-                deviceStatus.setHeartRateQuality(algo1.hrQuality);
+                deviceStatus.setBloodPulseWave(algo1.bloodPulseWave, 0);
+                deviceStatus.setSpo2(algo1.spO2, algo1.spO2Quality);
+                deviceStatus.setHeartRate(algo1.hr, algo1.hrQuality);
+                float[] latestBPW = deviceStatus.getBloodPulseWave();
+                float[] latestSpo2 = deviceStatus.getSpO2();
+                float[] latestHr = deviceStatus.getHeartRateAll();
 
                 BiovotionVSMBloodPulseWave bpwValue = new BiovotionVSMBloodPulseWave((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getBloodPulseWave(), deviceStatus.getBloodPulseWaveQuality());
+                        latestBPW[0], latestBPW[1]);
                 BiovotionVSMSpO2 spo2Value = new BiovotionVSMSpO2((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getSpO2(), deviceStatus.getSpO2Quality());
+                        latestSpo2[0], latestSpo2[1]);
                 BiovotionVSMHeartRate hrValue = new BiovotionVSMHeartRate((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getHeartRate(), deviceStatus.getHeartRateQuality());
+                        latestHr[0], latestHr[1]);
 
                 dataHandler.addMeasurement(bpwTable, deviceStatus.getId(), bpwValue);
                 dataHandler.addMeasurement(spo2Table, deviceStatus.getId(), spo2Value);
@@ -363,19 +361,19 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
             case Algo2:
                 Algo2 algo2 = (Algo2) unit.unit;
-                deviceStatus.setHrv(algo2.hrv);
-                deviceStatus.setHrvQuality(algo2.hrvQuality);
-                deviceStatus.setRr(algo2.respirationRate);
-                deviceStatus.setRrQuality(algo2.respirationRateQuality);
-                deviceStatus.setEnergy(algo2.energy);
-                deviceStatus.setEnergyQuality(algo2.energyQuality);
+                deviceStatus.setHeartRateVariability(algo2.hrv, algo2.hrvQuality);
+                deviceStatus.setRespirationRate(algo2.respirationRate, algo2.respirationRateQuality);
+                deviceStatus.setEnergy(algo2.energy, algo2.energyQuality);
+                float[] latestHRV = deviceStatus.getHeartRateVariability();
+                float[] latestRR = deviceStatus.getRespirationRate();
+                float[] latestEnergy = deviceStatus.getEnergy();
 
                 BiovotionVSMHeartRateVariability hrvValue = new BiovotionVSMHeartRateVariability((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getHrv(), deviceStatus.getHrvQuality());
+                        latestHRV[0], latestHRV[1]);
                 BiovotionVSMRespirationRate rrValue = new BiovotionVSMRespirationRate((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getRr(), deviceStatus.getRrQuality());
+                        latestRR[0], latestRR[1]);
                 BiovotionVSMEnergy energyValue = new BiovotionVSMEnergy((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getEnergy(), deviceStatus.getEnergyQuality());
+                        latestEnergy[0], latestEnergy[1]);
 
                 dataHandler.addMeasurement(hrvTable, deviceStatus.getId(), hrvValue);
                 dataHandler.addMeasurement(rrTable, deviceStatus.getId(), rrValue);
@@ -384,16 +382,15 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
             case RawBoard:
                 RawBoard rawboard = (RawBoard) unit.unit;
-                deviceStatus.setTemperature(rawboard.localTemp);
-                deviceStatus.setTemperatureObject(rawboard.objectTemp);
-                deviceStatus.setTemperatureBaro(rawboard.barometerTemp);
-                deviceStatus.setGsrAmplitude(rawboard.gsrAmplitude);
-                deviceStatus.setGsrPhase(rawboard.gsrPhase);
+                deviceStatus.setTemperature(rawboard.objectTemp, rawboard.localTemp, rawboard.barometerTemp);
+                deviceStatus.setGalvanicSkinResponse(rawboard.gsrAmplitude, rawboard.gsrPhase);
+                float[] latestTemp = deviceStatus.getTemperatureAll();
+                float[] latestGSR = deviceStatus.getGalvanicSkinResponse();
 
                 BiovotionVSMTemperature tempValue = new BiovotionVSMTemperature((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getTemperature(), deviceStatus.getTemperatureObject(), deviceStatus.getTemperatureBaro());
+                        latestTemp[0], latestTemp[1], latestTemp[2]);
                 BiovotionVSMGalvanicSkinResponse gsrValue = new BiovotionVSMGalvanicSkinResponse((double) unit.timestamp, System.currentTimeMillis() / 1000d,
-                        deviceStatus.getGsrAmplitude(), deviceStatus.getGsrPhase());
+                        latestGSR[0], latestGSR[1]);
 
                 dataHandler.addMeasurement(temperatureTable, deviceStatus.getId(), tempValue);
                 dataHandler.addMeasurement(gsrTable, deviceStatus.getId(), gsrValue);
