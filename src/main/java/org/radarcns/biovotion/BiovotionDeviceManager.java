@@ -44,6 +44,9 @@ import ch.hevs.biovotion.vsm.core.VsmConnectionState;
 import ch.hevs.biovotion.vsm.core.VsmDescriptor;
 import ch.hevs.biovotion.vsm.core.VsmDevice;
 import ch.hevs.biovotion.vsm.core.VsmDeviceListener;
+import ch.hevs.biovotion.vsm.parameters.Parameter;
+import ch.hevs.biovotion.vsm.parameters.ParameterController;
+import ch.hevs.biovotion.vsm.parameters.ParameterListener;
 import ch.hevs.biovotion.vsm.protocol.stream.StreamValue;
 import ch.hevs.biovotion.vsm.protocol.stream.units.Algo1;
 import ch.hevs.biovotion.vsm.protocol.stream.units.Algo2;
@@ -57,7 +60,7 @@ import ch.hevs.ble.lib.exceptions.BleScanException;
 import ch.hevs.ble.lib.scanner.Scanner;
 
 /** Manages scanning for a Biovotion VSM wearable and connecting to it */
-public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener, VsmDiscoveryListener, StreamListener {
+public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener, VsmDiscoveryListener, StreamListener, ParameterListener {
     private static final Logger logger = LoggerFactory.getLogger(BiovotionDeviceManager.class);
 
     private final TableDataHandler dataHandler;
@@ -82,6 +85,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
     private VsmDevice vsmDevice;
     private StreamController vsmStreamController;
+    private ParameterController vsmParameterController;
     private VsmDescriptor vsmDescriptor;
     private VsmScanner vsmScanner;
     private BluetoothAdapter vsmBluetoothAdapter;
@@ -238,6 +242,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
         vsmStreamController = device.streamController();
         vsmStreamController.addListener(this);
+        vsmParameterController = device.parameterController();
+        vsmParameterController.addListener(this);
     }
 
     @Override
@@ -253,6 +259,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         if (vsmDevice != null) vsmDevice.removeListeners();
         if (vsmStreamController != null) vsmStreamController.removeListeners();
         vsmStreamController = null;
+        if (vsmParameterController != null) vsmParameterController.removeListeners();
+        vsmParameterController = null;
     }
 
     @Override
@@ -262,6 +270,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         if (vsmDevice != null) vsmDevice.removeListeners();
         if (vsmStreamController != null) vsmStreamController.removeListeners();
         vsmStreamController = null;
+        if (vsmParameterController != null) vsmParameterController.removeListeners();
+        vsmParameterController = null;
     }
 
     @Override
@@ -316,6 +326,31 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         // TODO: handle error
     }
 
+
+
+    /*
+     * ParameterListener interface
+     */
+
+    @Override
+    public void onParameterWritten(@NonNull final ParameterController ctrl, int id) {
+        logger.info("Biovotion VSM Parameter written: {}", id);
+    }
+
+    @Override
+    public void onParameterWriteError(@NonNull final ParameterController ctrl, int id, final int errorCode) {
+        logger.error("Biovotion VSM Parameter write error, id={}, error={}", id, errorCode);
+    }
+
+    @Override
+    public void onParameterRead(@NonNull final ParameterController ctrl, @NonNull Parameter p) {
+        logger.info("Biovotion VSM Parameter read: {}", p);
+    }
+
+    @Override
+    public void onParameterReadError(@NonNull final ParameterController ctrl, int id) {
+        logger.error("Biovotion VSM Parameter read error, id={}", id);
+    }
 
     /*
      * StreamListener interface
