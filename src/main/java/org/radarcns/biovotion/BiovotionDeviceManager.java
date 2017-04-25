@@ -95,6 +95,10 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private BluetoothAdapter vsmBluetoothAdapter;
     private BleService vsmBleService;
 
+    private int gap_raw_cnt = -1;
+    private int gap_raw_num = -1;
+    private int gap_stat = -1;
+
     // Code to manage Service lifecycle.
     private boolean bleServiceConnectionIsBound;
     private final ServiceConnection bleServiceConnection = new ServiceConnection() {
@@ -359,6 +363,26 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
                 final Parameter algo_mode = Parameter.fromBytes(VsmConstants.PID_ALGO_MODE, new byte[] {(byte) VsmConstants.MOD_MIXED_VITAL_RAW});
                 if (!vsmParameterController.writeRequest(algo_mode)) logger.warn("Biovotion VSM parameter write request error.");
             }
+        }
+
+        /**
+         * GAP request chain: last counter -> num data -> req status -> record request
+         */
+        else if (p.id() == VsmConstants.PID_GAP_REQUEST_STATUS) {
+            gap_stat = p.value()[0];
+            logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
+
+            // GAP request here if necessary
+        }
+        else if (p.id() == VsmConstants.PID_LAST_RAW_COUNTER_VALUE) {
+            gap_raw_cnt = p.valueAsInteger();
+            logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
+            boolean success = vsmParameterController.readRequest(VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE);
+        }
+        else if (p.id() == VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE) {
+            gap_raw_num = p.valueAsInteger();
+            logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
+            boolean success = vsmParameterController.readRequest(VsmConstants.PID_GAP_REQUEST_STATUS);
         }
     }
 
