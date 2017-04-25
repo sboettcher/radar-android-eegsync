@@ -244,6 +244,9 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         vsmStreamController.addListener(this);
         vsmParameterController = device.parameterController();
         vsmParameterController.addListener(this);
+
+        // check for correct algo mode
+        if (!vsmParameterController.readRequest(VsmConstants.PID_ALGO_MODE)) logger.warn("Biovotion VSM parameter read request error.");
     }
 
     @Override
@@ -345,6 +348,14 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     @Override
     public void onParameterRead(@NonNull final ParameterController ctrl, @NonNull Parameter p) {
         logger.info("Biovotion VSM Parameter read: {}", p);
+
+        if (p.id() == VsmConstants.PID_ALGO_MODE) {
+            if (p.value()[0] != VsmConstants.MOD_MIXED_VITAL_RAW) {
+                // Set the device into mixed (algo + raw) mode. THIS WILL REBOOT THE DEVICE!
+                final Parameter algo_mode = Parameter.fromBytes(VsmConstants.PID_ALGO_MODE, new byte[] {(byte) VsmConstants.MOD_MIXED_VITAL_RAW});
+                if (!vsmParameterController.writeRequest(algo_mode)) logger.warn("Biovotion VSM parameter write request error.");
+            }
+        }
     }
 
     @Override

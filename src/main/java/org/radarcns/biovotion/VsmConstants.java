@@ -100,6 +100,22 @@ public final class VsmConstants {
   public final static int GAP_TYPE_VITAL_RAW    = 0x10;
 
 
+  /**
+   * VSM algorithm modes
+   */
+  public final static int MOD_VITAL_MODE                = 0x00;
+  public final static int MOD_VITAL_CAPPED_MODE         = 0x01;
+  public final static int MOD_RAW_DATA_VITAL_MODE       = 0x04;
+  public final static int MOD_RAW_DATA_HR_ONLY_MODE     = 0x05;
+  public final static int MOD_SELF_TEST_MODE            = 0x06;
+  public final static int MOD_MIXED_VITAL_RAW           = 0x09;
+  public final static int MOD_VITAL_MODE_AUTO_DATA      = 0x0A;
+  public final static int MOD_GREEN_ONLY_MODE           = 0x0B;
+  public final static int MOD_RAW_DATA_FIX_CURRENT      = 0x0C;
+  public final static int MOD_SHORT_SELF_TEST_MODE      = 0x0D;
+  public final static int MOD_MIXED_VITAL_RAW_SILENT    = 0x0E;
+
+
   private VsmConstants() {
     // Private
   }
