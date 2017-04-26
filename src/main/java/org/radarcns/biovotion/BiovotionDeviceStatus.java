@@ -214,9 +214,9 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
     }
 
     public void setAcceleration(float x, float y, float z) {
-        this.acceleration[0] = x;
-        this.acceleration[1] = y;
-        this.acceleration[2] = z;
+        this.acceleration[0] = x / (float)Math.pow(2, 12);
+        this.acceleration[1] = y / (float)Math.pow(2, 12);
+        this.acceleration[2] = z / (float)Math.pow(2, 12);
     }
 
     public void setLedCurrent(float red, float green, float ir, float offset) {

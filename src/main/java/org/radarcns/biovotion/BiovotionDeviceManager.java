@@ -79,6 +79,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private final DataCache<MeasurementKey, BiovotionVSMEnergy> energyTable;
     private final DataCache<MeasurementKey, BiovotionVSMTemperature> temperatureTable;
     private final DataCache<MeasurementKey, BiovotionVSMGalvanicSkinResponse> gsrTable;
+    private final DataCache<MeasurementKey, BiovotionVSMAcceleration> accelerationTable;
+    private final DataCache<MeasurementKey, BiovotionVSMLedCurrent> ledCurrentTable;
     private final AvroTopic<MeasurementKey, BiovotionVSMBatteryState> batteryTopic;
 
     private final BiovotionDeviceStatus deviceStatus;
@@ -140,6 +142,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         this.energyTable = dataHandler.getCache(topics.getEnergyTopic());
         this.temperatureTable = dataHandler.getCache(topics.getTemperatureTopic());
         this.gsrTable = dataHandler.getCache(topics.getGsrTopic());
+        this.accelerationTable = dataHandler.getCache(topics.getAccelerationTopic());
+        this.ledCurrentTable = dataHandler.getCache(topics.getLedCurrentTopic());
         this.batteryTopic = topics.getBatteryStateTopic();
 
         this.biovotionService = biovotionService;
@@ -254,7 +258,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         vsmParameterController.addListener(this);
 
         // check for correct algo mode
-        if (!vsmParameterController.readRequest(VsmConstants.PID_ALGO_MODE)) logger.warn("Biovotion VSM parameter read request error.");
+        paramReadRequest(VsmConstants.PID_ALGO_MODE);
     }
 
     @Override
@@ -361,7 +365,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             if (p.value()[0] != VsmConstants.MOD_MIXED_VITAL_RAW) {
                 // Set the device into mixed (algo + raw) mode. THIS WILL REBOOT THE DEVICE!
                 final Parameter algo_mode = Parameter.fromBytes(VsmConstants.PID_ALGO_MODE, new byte[] {(byte) VsmConstants.MOD_MIXED_VITAL_RAW});
-                if (!vsmParameterController.writeRequest(algo_mode)) logger.warn("Biovotion VSM parameter write request error.");
+                paramWriteRequest(algo_mode);
             }
         }
 
@@ -377,12 +381,12 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         else if (p.id() == VsmConstants.PID_LAST_RAW_COUNTER_VALUE) {
             gap_raw_cnt = p.valueAsInteger();
             logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
-            boolean success = vsmParameterController.readRequest(VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE);
+            paramReadRequest(VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE);
         }
         else if (p.id() == VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE) {
             gap_raw_num = p.valueAsInteger();
             logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
-            boolean success = vsmParameterController.readRequest(VsmConstants.PID_GAP_REQUEST_STATUS);
+            paramReadRequest(VsmConstants.PID_GAP_REQUEST_STATUS);
         }
     }
 
@@ -414,7 +418,18 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         // send the request
         logger.info("Biovotion VSM GAP request value: {}",  bytesToHex(ba_gap_req_value));
         final Parameter gap_req = Parameter.fromBytes(17, ba_gap_req_value);
-        return vsmParameterController.writeRequest(gap_req);
+        return paramWriteRequest(gap_req);
+    }
+
+    public boolean paramReadRequest(int id) {
+        boolean success = vsmParameterController.readRequest(id);
+        if (!success) logger.error("Biovotion VSM parameter read request error. id:{}", id);
+        return success;
+    }
+    public boolean paramWriteRequest(Parameter param) {
+        boolean success = vsmParameterController.writeRequest(param);
+        if (!success) logger.error("Biovotion VSM parameter write request error. parameter:{}", param);
+        return success;
     }
 
     public static String bytesToHex(byte[] in) {
@@ -508,12 +523,15 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
             case RawAlgo:
                 RawAlgo rawalgo = (RawAlgo) unit.unit;
-                logger.info("GAP RawAlgo nbrUnits: {}", rawalgo.nbrUnits);
+                for (RawAlgo.RawAlgoUnit i : rawalgo.units) {
+                    //logger.info("Biovotion VSM RawAlgo: red:{} | green:{} | ir:{} | dark:{}", i.red, i.green, i.ir, i.dark);
+                    //logger.info("Biovotion VSM RawAlgo: x:{} | y:{} | z:{}", i.x, i.y, i.z);
+                }
                 break;
 
             case LedCurrent:
                 LedCurrent ledcurrent = (LedCurrent) unit.unit;
-                logger.info("Biovotion VSM LedCurrent: red:{} | green:{} | ir:{} | offset:{}", ledcurrent.red, ledcurrent.green, ledcurrent.ir, ledcurrent.offset);
+                //logger.info("Biovotion VSM LedCurrent: red:{} | green:{} | ir:{} | offset:{}", ledcurrent.red, ledcurrent.green, ledcurrent.ir, ledcurrent.offset);
                 break;
         }
     }
