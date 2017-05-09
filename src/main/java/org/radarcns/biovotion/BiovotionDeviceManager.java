@@ -24,11 +24,13 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 import android.support.annotation.NonNull;
+//import android.widget.Toast;
 
 import org.radarcns.android.data.DataCache;
 import org.radarcns.android.data.TableDataHandler;
 import org.radarcns.android.device.DeviceManager;
 import org.radarcns.android.device.DeviceStatusListener;
+//import org.radarcns.android.util.Boast;
 import org.radarcns.key.MeasurementKey;
 import org.radarcns.topic.AvroTopic;
 import org.radarcns.util.Strings;
@@ -38,7 +40,9 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import ch.hevs.biovotion.vsm.ble.scanner.VsmDiscoveryListener;
 import ch.hevs.biovotion.vsm.ble.scanner.VsmScanner;
@@ -86,6 +90,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private final BiovotionDeviceStatus deviceStatus;
 
     private boolean isClosed;
+    private boolean isConnected;
     private String deviceName;
     private Pattern[] acceptableIds;
 
@@ -97,9 +102,14 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private BluetoothAdapter vsmBluetoothAdapter;
     private BleService vsmBleService;
 
-    private int gap_raw_cnt = -1;
-    private int gap_raw_num = -1;
-    private int gap_stat = -1;
+    private ScheduledThreadPoolExecutor gapExecutor;
+    private int gap_raw_last_cnt = -1;      // latest counter index from last GAP request
+    private int gap_raw_last_idx = -1;      // start index from last GAP request
+    private int gap_raw_since_last = 0;     // number of records streamed since last GAP request
+    private int gap_raw_to_get = 0;         // number of records requested from last GAP request
+    private int gap_raw_cnt = -1;           // current latest counter index
+    private int gap_raw_num = -1;           // current total number of records in storage
+    private int gap_stat = -1;              // current GAP status
 
     // Code to manage Service lifecycle.
     private boolean bleServiceConnectionIsBound;
@@ -151,17 +161,22 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
         this.bleServiceConnectionIsBound = false;
 
+        this.gapExecutor = new ScheduledThreadPoolExecutor(1);
+
         synchronized (this) {
             this.deviceStatus = new BiovotionDeviceStatus();
             this.deviceStatus.getId().setUserId(groupId);
             this.deviceName = null;
             this.isClosed = true;
+            this.isConnected = false;
             this.acceptableIds = null;
         }
     }
 
 
     public void close() {
+        if (gapExecutor != null) gapExecutor.shutdownNow();
+
         synchronized (this) {
             if (this.isClosed) {
                 return;
@@ -196,6 +211,16 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             this.acceptableIds = Strings.containsPatterns(acceptableIds);
             this.isClosed = false;
         }
+
+        // schedule new gap request or checking gap running status
+        gapExecutor.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                if (isConnected) {
+                    paramReadRequest(VsmConstants.PID_GAP_REQUEST_STATUS);
+                }
+            }
+        }, VsmConstants.GAP_INTERVAL_MS, VsmConstants.GAP_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -257,8 +282,15 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         vsmParameterController = device.parameterController();
         vsmParameterController.addListener(this);
 
+        // set UTC time
+        byte[] time_bytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt((int) (System.currentTimeMillis() / 1000d)).array();
+        final Parameter time = Parameter.fromBytes(VsmConstants.PID_UTC, time_bytes);
+        paramWriteRequest(time);
+
         // check for correct algo mode
         paramReadRequest(VsmConstants.PID_ALGO_MODE);
+
+        this.isConnected = true;
     }
 
     @Override
@@ -271,6 +303,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     public void onVsmDeviceConnectionError(@NonNull VsmDevice device, VsmConnectionState errorState) {
         logger.error("Biovotion VSM device connection error: {}", errorState.toString());
         updateStatus(DeviceStatusListener.Status.DISCONNECTED);
+        this.isConnected = false;
+
         if (vsmDevice != null) vsmDevice.removeListeners();
         if (vsmStreamController != null) vsmStreamController.removeListeners();
         vsmStreamController = null;
@@ -282,6 +316,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     public void onVsmDeviceDisconnected(@NonNull VsmDevice device, int statusCode) {
         logger.warn("Biovotion VSM device disconnected. ({})", statusCode);
         updateStatus(DeviceStatusListener.Status.DISCONNECTED);
+        this.isConnected = false;
+
         if (vsmDevice != null) vsmDevice.removeListeners();
         if (vsmStreamController != null) vsmStreamController.removeListeners();
         vsmStreamController = null;
@@ -350,6 +386,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     @Override
     public void onParameterWritten(@NonNull final ParameterController ctrl, int id) {
         logger.info("Biovotion VSM Parameter written: {}", id);
+
+        if (id == VsmConstants.PID_UTC) paramReadRequest(VsmConstants.PID_UTC);
     }
 
     @Override
@@ -361,33 +399,117 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     public void onParameterRead(@NonNull final ParameterController ctrl, @NonNull Parameter p) {
         logger.info("Biovotion VSM Parameter read: {}", p);
 
+        // read algo_mode parameter; if not mixed algo/raw, set it to that
         if (p.id() == VsmConstants.PID_ALGO_MODE) {
             if (p.value()[0] != VsmConstants.MOD_MIXED_VITAL_RAW) {
                 // Set the device into mixed (algo + raw) mode. THIS WILL REBOOT THE DEVICE!
                 final Parameter algo_mode = Parameter.fromBytes(VsmConstants.PID_ALGO_MODE, new byte[] {(byte) VsmConstants.MOD_MIXED_VITAL_RAW});
                 paramWriteRequest(algo_mode);
+                //Boast.makeText(context, "Rebooting Biovotion device (switch to mixed algo mode)", Toast.LENGTH_LONG).show();
             }
         }
 
+        // read device UTC time
+        else if (p.id() == VsmConstants.PID_UTC) {
+            logger.info("Biovotion VSM device UTC: {}", p.valueAsInteger());
+            //Boast.makeText(context, "Biovotion device UTC: " + p.valueAsInteger(), Toast.LENGTH_LONG).show();
+        }
+
         /**
-         * GAP request chain: last counter -> num data -> req status -> record request
+         * GAP request chain: gap status -> num data -> latest counter -> calculate gap -> gap request
+         *
+         * GAP requests will trigger streaming of data saved on the device, either raw data (which is never automatically streamed),
+         * or algo data (which was not streamed due to missing connection).
+         *
+         * A GAP request will need the following parameters:
+         * - gap_type: the type of data to be streamed
+         * - gap_start: the counter value from where to begin streaming
+         * - gap_range: the range, i.e. number of samples to be streamed
+         *
+         * Data is saved internally in a RingBuffer like structure, with two public values as an interface:
+         * - number of data in the buffer (NUMBER_OF_[]_SETS_IN_STORAGE)
+         * - latest counter value (LAST_[]_COUNTER_VALUE)
+         * The first will max out once the storage limit is reached, and new values will overwrite old ones in a FIFO behaviour.
+         * The second will keep incrementing when new samples are recorded into storage. (4 Byte unsigned int, overflow after ~2.66 years @ 51.2 Hz)
+         *
+         * The newest data sample has the id (counter value) LAST_[]_COUNTER_VALUE, the oldest has the id 0
+         * A GAP request will accordingly stream 'backwards' w.r.t. sample id's and time:
+         * Suppose gap_start = 999 and gap_range = 1000, the oldest 1000 samples will be streamed, in reverse-chronological order. (caveat see below 'pages')
+         *
+         * In the case of this application, the most recent raw data is requested at a fixed rate, in the following fashion:
+         * - the current GAP status is queried, if a GAP request is running (=0) the new request is aborted
+         * - the number of records and latest counter value are queried
+         * - the new starting index is the latest counter value
+         * - the range of values to request is calculated via the difference of the current latest counter and the latest counter at time of the last GAP request
+         * - a new GAP request is issued with the calculated values, and the current latest counter value is saved
+         *
+         * Pages:
+         * The data on the device is stored in pages of a specific number of samples (e.g. 17 in case of raw data). When getting data via GAP request,
+         * data will always be streamed in whole pages, i.e. if the start or end point of a GAP request is in the middle of a page, that whole page will
+         * still be streamed. This may result in more data being streamed than was requested.
+         *
          */
+
+        // read GAP request status
         else if (p.id() == VsmConstants.PID_GAP_REQUEST_STATUS) {
             gap_stat = p.value()[0];
+            if (gap_stat == 0) {
+                logger.info("Biovotion VSM GAP request running");
+                return;
+            }
+            // TODO: handle GAP error statuses (gap_stat > 1)
+
+            // will always stream whole pages, don't even bother if stream is mid page
+            //if (gap_raw_since_last % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW != 0)
+            //    return;
+
             logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
 
-            // GAP request here if necessary
-        }
-        else if (p.id() == VsmConstants.PID_LAST_RAW_COUNTER_VALUE) {
-            gap_raw_cnt = p.valueAsInteger();
-            logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
             paramReadRequest(VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE);
         }
+
+        // read number of raw data sets currently in device storage
         else if (p.id() == VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE) {
             gap_raw_num = p.valueAsInteger();
             logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
-            paramReadRequest(VsmConstants.PID_GAP_REQUEST_STATUS);
+
+            paramReadRequest(VsmConstants.PID_LAST_RAW_COUNTER_VALUE);
         }
+
+        // read current latest record counter id. may initiate GAP request here
+        else if (p.id() == VsmConstants.PID_LAST_RAW_COUNTER_VALUE) {
+            gap_raw_cnt = p.valueAsInteger();
+            //if (gap_raw_last_cnt < 0) gap_raw_last_cnt = gap_raw_cnt;
+            //if (gap_raw_last_idx < 0) gap_raw_last_idx = gap_raw_cnt;
+            if (gap_raw_last_cnt < 0) gap_raw_last_cnt = gap_raw_cnt;
+
+            int new_idx = gap_raw_cnt;
+
+            //int records_to_get = VsmConstants.GAP_NUM_PAGES * VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW;
+            int records_to_get = gap_raw_cnt - gap_raw_last_cnt;
+
+            logger.info("Biovotion VSM GAP status: raw_cnt:{}:{} | raw_toget:{}:{} | gap_stat:{}", gap_raw_cnt, gap_raw_last_cnt, records_to_get, gap_raw_to_get, gap_stat);
+
+            // GAP request here
+            if (gap_stat != 0 && gap_raw_cnt > 0 && gap_raw_num > 0
+                    && records_to_get > 0
+                    && (new_idx+1 - records_to_get) >= 0
+                    && (new_idx+1) % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW == 0) {
+                if (gap_raw_since_last != gap_raw_to_get)
+                    logger.warn("Biovotion VSM GAP num samples since last request ({}) is not equal with num records to get ({})!", gap_raw_since_last, gap_raw_to_get);
+
+                if (!gapRequest(VsmConstants.GAP_TYPE_VITAL_RAW, new_idx, records_to_get)) {
+                    logger.error("Biovotion VSM GAP request failed!");
+                } else {
+                    gap_raw_since_last = 0;
+                    gap_raw_last_idx = new_idx;
+                    gap_raw_last_cnt = gap_raw_cnt;
+                    gap_raw_to_get = records_to_get;
+                    paramReadRequest(VsmConstants.PID_GAP_REQUEST_STATUS);
+                }
+            }
+        }
+
     }
 
     @Override
@@ -404,6 +526,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
      * @return write request success
      */
     public boolean gapRequest(int gap_type, int gap_start, int gap_range) {
+        if (gap_start <= 0 || gap_range <= 0 || gap_range > gap_start+1) return false;
+
         // get byte arrays for request value
         byte[] ba_gap_type = new byte[] {(byte) gap_type};
         byte[] ba_gap_start = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(gap_start).array();
@@ -416,8 +540,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         System.arraycopy(ba_gap_range, 0, ba_gap_req_value, ba_gap_type.length + ba_gap_start.length, ba_gap_range.length);
 
         // send the request
-        logger.info("Biovotion VSM GAP request value: {}",  bytesToHex(ba_gap_req_value));
-        final Parameter gap_req = Parameter.fromBytes(17, ba_gap_req_value);
+        logger.info("Biovotion VSM GAP new request, value: {}",  bytesToHex(ba_gap_req_value));
+        final Parameter gap_req = Parameter.fromBytes(VsmConstants.PID_GAP_RECORD_REQUEST, ba_gap_req_value);
         return paramWriteRequest(gap_req);
     }
 
@@ -525,13 +649,29 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
                 RawAlgo rawalgo = (RawAlgo) unit.unit;
                 for (RawAlgo.RawAlgoUnit i : rawalgo.units) {
                     //logger.info("Biovotion VSM RawAlgo: red:{} | green:{} | ir:{} | dark:{}", i.red, i.green, i.ir, i.dark);
-                    //logger.info("Biovotion VSM RawAlgo: x:{} | y:{} | z:{}", i.x, i.y, i.z);
+                    //logger.info("Biovotion VSM RawAlgo: x:{} | y:{} | z:{} | @:{}", i.x, i.y, i.z, (double) unit.timestamp);
+                    deviceStatus.setAcceleration(i.x, i.y, i.z);
+                    float[] latestAcc = deviceStatus.getAcceleration();
+
+                    BiovotionVSMAcceleration accValue = new BiovotionVSMAcceleration((double) unit.timestamp, System.currentTimeMillis() / 1000d,
+                            latestAcc[0], latestAcc[1], latestAcc[2]);
+
+                    dataHandler.addMeasurement(accelerationTable, deviceStatus.getId(), accValue);
+
+                    gap_raw_since_last++;
                 }
                 break;
 
             case LedCurrent:
                 LedCurrent ledcurrent = (LedCurrent) unit.unit;
                 //logger.info("Biovotion VSM LedCurrent: red:{} | green:{} | ir:{} | offset:{}", ledcurrent.red, ledcurrent.green, ledcurrent.ir, ledcurrent.offset);
+                deviceStatus.setLedCurrent(ledcurrent.red, ledcurrent.green, ledcurrent.ir, ledcurrent.offset);
+                float[] latestLedCurrent = deviceStatus.getLedCurrent();
+
+                BiovotionVSMLedCurrent ledValue = new BiovotionVSMLedCurrent((double) unit.timestamp, System.currentTimeMillis() / 1000d,
+                    latestLedCurrent[0], latestLedCurrent[1], latestLedCurrent[2], latestLedCurrent[3]);
+
+                dataHandler.addMeasurement(ledCurrentTable, deviceStatus.getId(), ledValue);
                 break;
         }
     }

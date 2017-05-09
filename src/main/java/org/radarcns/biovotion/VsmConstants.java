@@ -99,6 +99,22 @@ public final class VsmConstants {
   public final static int GAP_TYPE_IPI          = 0x03;
   public final static int GAP_TYPE_VITAL_RAW    = 0x10;
 
+  /**
+   * GAP request maximum number of records per page, whole pages will be streamed if possible
+   */
+  public final static int GAP_MAX_PER_PAGE_ERROR_LOG    = 0x0C;
+  public final static int GAP_MAX_PER_PAGE_EVENT_LOG    = 0x09;
+  public final static int GAP_MAX_PER_PAGE_VITAL        = 0x09;
+  public final static int GAP_MAX_PER_PAGE_IPI          = 0x27;
+  public final static int GAP_MAX_PER_PAGE_VITAL_RAW    = 0x11;
+
+  /**
+   * GAP request miscellaneous
+   */
+  public final static int GAP_NUM_PAGES     = 10; // number of pages to get with one request
+  public final static int GAP_INTERVAL_MS   = 500; // try a new GAP request every x milliseconds
+  public final static int GAP_NUM_LOOKUP    = 0; // maximum number of pages to look into the past, if set to -1 will look as far as possible (more of a debug feature for now, not fully implemented)
+
 
   /**
    * VSM algorithm modes
