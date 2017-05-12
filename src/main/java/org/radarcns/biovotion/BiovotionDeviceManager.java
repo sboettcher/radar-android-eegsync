@@ -39,6 +39,8 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
@@ -111,6 +113,9 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private int gap_raw_num = -1;           // current total number of records in storage
     private int gap_stat = -1;              // current GAP status
 
+    private Deque<BiovotionVSMAcceleration> gap_raw_stack_acc;
+    //private Deque<BiovotionVSM> gap_raw_stack_led;
+
     // Code to manage Service lifecycle.
     private boolean bleServiceConnectionIsBound;
     private final ServiceConnection bleServiceConnection = new ServiceConnection() {
@@ -162,6 +167,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         this.bleServiceConnectionIsBound = false;
 
         this.gapExecutor = new ScheduledThreadPoolExecutor(1);
+
+        this.gap_raw_stack_acc = new ArrayDeque<>(1024);
 
         synchronized (this) {
             this.deviceStatus = new BiovotionDeviceStatus();
@@ -656,7 +663,20 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
                     BiovotionVSMAcceleration accValue = new BiovotionVSMAcceleration((double) unit.timestamp, System.currentTimeMillis() / 1000d,
                             latestAcc[0], latestAcc[1], latestAcc[2]);
 
-                    dataHandler.addMeasurement(accelerationTable, deviceStatus.getId(), accValue);
+                    // add measurements to a stack as long as new measurements are older. if a newer measurement is added, empty the stack into accelerationTable and start over
+                    if (gap_raw_stack_acc.peekFirst() != null && accValue.getTime() > gap_raw_stack_acc.peekFirst().getTime()) {
+                        logger.info("Empty Stack:");
+                        while (gap_raw_stack_acc.peekFirst() != null) {
+                            logger.info("{}", gap_raw_stack_acc.peekFirst());
+                            dataHandler.addMeasurement(accelerationTable, deviceStatus.getId(), gap_raw_stack_acc.removeFirst());
+                        }
+                        gap_raw_stack_acc.addFirst(accValue);
+                    }
+                    else {
+                        gap_raw_stack_acc.addFirst(accValue);
+                    }
+
+                    //dataHandler.addMeasurement(accelerationTable, deviceStatus.getId(), accValue);
 
                     gap_raw_since_last++;
                 }
