@@ -39,7 +39,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
+import java.util.Date;
 import java.util.Deque;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -117,6 +119,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private Deque<BiovotionVSMLedCurrent> gap_raw_stack_led_current;
     //private Deque<BiovotionVSM> gap_raw_stack_led;
 
+    private ScheduledThreadPoolExecutor utcExecutor;
+
     // Code to manage Service lifecycle.
     private boolean bleServiceConnectionIsBound;
     private final ServiceConnection bleServiceConnection = new ServiceConnection() {
@@ -168,6 +172,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         this.bleServiceConnectionIsBound = false;
 
         this.gapExecutor = new ScheduledThreadPoolExecutor(1);
+        this.utcExecutor = new ScheduledThreadPoolExecutor(1);
 
         this.gap_raw_stack_acc = new ArrayDeque<>(1024);
         this.gap_raw_stack_led_current = new ArrayDeque<>(1024);
@@ -230,6 +235,19 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
                 }
             }
         }, VsmConstants.GAP_INTERVAL_MS, VsmConstants.GAP_INTERVAL_MS, TimeUnit.MILLISECONDS);
+
+        // schedule new gap request or checking gap running status
+        utcExecutor.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                if (isConnected) {
+                    // set UTC time
+                    byte[] time_bytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt((int) (System.currentTimeMillis() / 1000d)).array();
+                    final Parameter time = Parameter.fromBytes(VsmConstants.PID_UTC, time_bytes);
+                    paramWriteRequest(time);
+                }
+            }
+        }, VsmConstants.UTC_INTERVAL_MS, VsmConstants.UTC_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -420,7 +438,9 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
         // read device UTC time
         else if (p.id() == VsmConstants.PID_UTC) {
-            logger.info("Biovotion VSM device UTC: {}", p.valueAsInteger());
+            Date date = new Date(p.valueAsInteger() * 1000L);
+            SimpleDateFormat datef = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z");
+            logger.info("Biovotion VSM device UTC timestamp is: {} ({})", p.valueAsInteger(), datef.format(date));
             //Boast.makeText(context, "Biovotion device UTC: " + p.valueAsInteger(), Toast.LENGTH_LONG).show();
         }
 

@@ -117,6 +117,12 @@ public final class VsmConstants {
 
 
   /**
+   * UTC set time interval
+   */
+  public final static int UTC_INTERVAL_MS   = 60000; // set the device UTC time every x milliseconds
+
+
+  /**
    * VSM algorithm modes
    */
   public final static int MOD_VITAL_MODE                = 0x00;
