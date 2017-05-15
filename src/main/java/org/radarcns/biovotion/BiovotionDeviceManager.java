@@ -317,6 +317,9 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         // check for correct algo mode
         paramReadRequest(VsmConstants.PID_ALGO_MODE);
 
+        // check for GSR mode on
+        paramReadRequest(VsmConstants.PID_GSR_ON);
+
         this.isConnected = true;
     }
 
@@ -430,9 +433,20 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         if (p.id() == VsmConstants.PID_ALGO_MODE) {
             if (p.value()[0] != VsmConstants.MOD_MIXED_VITAL_RAW) {
                 // Set the device into mixed (algo + raw) mode. THIS WILL REBOOT THE DEVICE!
+                logger.warn("Biovotion VSM setting algo mode to MIXED_VITAL_RAW. The device will reboot!");
                 final Parameter algo_mode = Parameter.fromBytes(VsmConstants.PID_ALGO_MODE, new byte[] {(byte) VsmConstants.MOD_MIXED_VITAL_RAW});
                 paramWriteRequest(algo_mode);
                 //Boast.makeText(context, "Rebooting Biovotion device (switch to mixed algo mode)", Toast.LENGTH_LONG).show();
+            }
+        }
+
+        // read gsr_on parameter; if not on, activate
+        else if (p.id() == VsmConstants.PID_GSR_ON) {
+            if (p.value()[0] != 0x01) {
+                // Turn on GSR module
+                logger.info("Biovotion VSM activating GSR module");
+                final Parameter gsr_on = Parameter.fromBytes(VsmConstants.PID_GSR_ON, new byte[] {(byte) 0x01});
+                paramWriteRequest(gsr_on);
             }
         }
 
