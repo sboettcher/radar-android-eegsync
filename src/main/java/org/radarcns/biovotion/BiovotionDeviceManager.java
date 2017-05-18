@@ -526,7 +526,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             //if (gap_raw_since_last % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW != 0)
             //    return;
 
-            logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
+            logger.debug("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
 
             paramReadRequest(VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE);
         }
@@ -534,7 +534,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         // read number of raw data sets currently in device storage
         else if (p.id() == VsmConstants.PID_NUMBER_OF_RAW_DATA_SETS_IN_STORAGE) {
             gap_raw_num = p.valueAsInteger();
-            logger.info("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
+            logger.debug("Biovotion VSM GAP status: raw_cnt:{} | raw_num:{} | gap_stat:{}", gap_raw_cnt, gap_raw_num, gap_stat);
 
             paramReadRequest(VsmConstants.PID_LAST_RAW_COUNTER_VALUE);
         }
@@ -550,13 +550,15 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             //int records_to_get = VsmConstants.GAP_NUM_PAGES * VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW;
             int records_to_get = gap_raw_cnt - gap_raw_last_cnt;
 
-            logger.info("Biovotion VSM GAP status: raw_cnt:{}:{} | raw_toget:{}:{} | gap_stat:{}", gap_raw_cnt, gap_raw_last_cnt, records_to_get, gap_raw_to_get, gap_stat);
+            logger.debug("Biovotion VSM GAP status: raw_cnt:{}:{} | raw_toget:{}:{} | gap_stat:{}", gap_raw_cnt, gap_raw_last_cnt, records_to_get, gap_raw_to_get, gap_stat);
 
             // GAP request here
             if (gap_stat != 0 && gap_raw_cnt > 0 && gap_raw_num > 0
                     && records_to_get > 0
                     && (gap_raw_num - records_to_get) > 0 // cant request more records than are stored on the device
-                    && (new_idx+1) % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW == 0) { // dont make a request if the index is not a multiple of the page size, to avoid getting more records than were requested
+                    && (new_idx+1) % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW == 0 // dont make a request if the index is not a multiple of the page size, to avoid getting more records than were requested
+                    && records_to_get % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW == 0) // dont make a request if the number of records to get is not a multiple of the page size, to avoid getting more records than were requested
+            {
                 if (gap_raw_since_last != gap_raw_to_get)
                     logger.warn("Biovotion VSM GAP num samples since last request ({}) is not equal with num records to get ({})!", gap_raw_since_last, gap_raw_to_get);
 
@@ -569,6 +571,13 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
                     gap_raw_to_get = records_to_get;
                     paramReadRequest(VsmConstants.PID_GAP_REQUEST_STATUS);
                 }
+            }
+            else if (gap_stat != 0 && gap_raw_cnt > 0 && gap_raw_num > 0
+                    && records_to_get > 0
+                    && (gap_raw_num - records_to_get) > 0
+                    && ((new_idx+1) % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW != 0 || records_to_get % VsmConstants.GAP_MAX_PER_PAGE_VITAL_RAW != 0))
+            {
+                paramReadRequest(VsmConstants.PID_LAST_RAW_COUNTER_VALUE); // immediately try again if aborted due to page size checks
             }
         }
 
@@ -599,7 +608,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         gapRequestBuffer.clear();
 
         // send the request
-        logger.info("Biovotion VSM GAP new request, value: {}",  bytesToHex(ba_gap_req_value));
+        logger.info("Biovotion VSM GAP new request: type:{} start:{} range:{}", gap_type, gap_start, gap_range);
         final Parameter gap_req = Parameter.fromBytes(VsmConstants.PID_GAP_RECORD_REQUEST, ba_gap_req_value);
         return paramWriteRequest(gap_req);
     }
@@ -613,14 +622,6 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         boolean success = vsmParameterController.writeRequest(param);
         if (!success) logger.error("Biovotion VSM parameter write request error. parameter:{}", param);
         return success;
-    }
-
-    public static String bytesToHex(byte[] in) {
-        final StringBuilder builder = new StringBuilder();
-        for(byte b : in) {
-            builder.append(String.format("%02x ", b));
-        }
-        return builder.toString();
     }
 
 
@@ -717,14 +718,11 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
                     // add measurements to a stack as long as new measurements are older. if a newer measurement is added, empty the stack into accelerationTable and start over
                     if (gap_raw_stack_acc.peekFirst() != null && accValue.getTime() > gap_raw_stack_acc.peekFirst().getTime()) {
-                        while (gap_raw_stack_acc.peekFirst() != null) {
+                        while (!gap_raw_stack_acc.isEmpty()) {
                             dataHandler.addMeasurement(accelerationTable, deviceStatus.getId(), gap_raw_stack_acc.removeFirst());
                         }
-                        gap_raw_stack_acc.addFirst(accValue);
                     }
-                    else {
-                        gap_raw_stack_acc.addFirst(accValue);
-                    }
+                    gap_raw_stack_acc.addFirst(accValue);
 
                     gap_raw_since_last++;
                 }
@@ -741,14 +739,11 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
                 // add measurements to a stack as long as new measurements are older. if a newer measurement is added, empty the stack into ledCurrentTable and start over
                 if (gap_raw_stack_led_current.peekFirst() != null && ledValue.getTime() > gap_raw_stack_led_current.peekFirst().getTime()) {
-                    while (gap_raw_stack_led_current.peekFirst() != null) {
+                    while (!gap_raw_stack_led_current.isEmpty()) {
                         dataHandler.addMeasurement(ledCurrentTable, deviceStatus.getId(), gap_raw_stack_led_current.removeFirst());
                     }
-                    gap_raw_stack_led_current.addFirst(ledValue);
                 }
-                else {
-                    gap_raw_stack_led_current.addFirst(ledValue);
-                }
+                gap_raw_stack_led_current.addFirst(ledValue);
 
                 break;
         }
