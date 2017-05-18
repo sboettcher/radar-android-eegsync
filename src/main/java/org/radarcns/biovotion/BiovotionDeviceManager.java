@@ -113,6 +113,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private final ScheduledExecutorService executor;
 
     private ScheduledFuture<?> gapFuture;
+    private final ByteBuffer gapRequestBuffer;
     private int gap_raw_last_cnt = -1;      // latest counter index from last GAP request
     private int gap_raw_last_idx = -1;      // start index from last GAP request
     private int gap_raw_since_last = 0;     // number of records streamed since last GAP request
@@ -126,6 +127,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     //private Deque<BiovotionVSM> gap_raw_stack_led;
 
     private ScheduledFuture<?> utcFuture;
+    private final ByteBuffer utcBuffer;
 
     // Code to manage Service lifecycle.
     private boolean bleServiceConnectionIsBound;
@@ -181,6 +183,9 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
         this.gap_raw_stack_acc = new ArrayDeque<>(1024);
         this.gap_raw_stack_led_current = new ArrayDeque<>(1024);
+
+        this.gapRequestBuffer = ByteBuffer.allocate(9).order(ByteOrder.LITTLE_ENDIAN);
+        this.utcBuffer = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
 
         synchronized (this) {
             this.deviceStatus = new BiovotionDeviceStatus();
@@ -254,9 +259,10 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             public void run() {
                 if (isConnected) {
                     // set UTC time
-                    byte[] time_bytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt((int) (System.currentTimeMillis() / 1000d)).array();
+                    byte[] time_bytes = utcBuffer.putInt((int) (System.currentTimeMillis() / 1000d)).array();
                     final Parameter time = Parameter.fromBytes(VsmConstants.PID_UTC, time_bytes);
                     paramWriteRequest(time);
+                    utcBuffer.clear();
                 }
             }
         }, VsmConstants.UTC_INTERVAL_MS, VsmConstants.UTC_INTERVAL_MS, TimeUnit.MILLISECONDS);
@@ -322,9 +328,10 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         vsmParameterController.addListener(this);
 
         // set UTC time
-        byte[] time_bytes = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt((int) (System.currentTimeMillis() / 1000d)).array();
+        byte[] time_bytes = utcBuffer.putInt((int) (System.currentTimeMillis() / 1000d)).array();
         final Parameter time = Parameter.fromBytes(VsmConstants.PID_UTC, time_bytes);
         paramWriteRequest(time);
+        utcBuffer.clear();
 
         // check for correct algo mode
         paramReadRequest(VsmConstants.PID_ALGO_MODE);
@@ -583,16 +590,13 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     public boolean gapRequest(int gap_type, int gap_start, int gap_range) {
         if (gap_start <= 0 || gap_range <= 0 || gap_range > gap_start+1) return false;
 
-        // get byte arrays for request value
-        byte[] ba_gap_type = new byte[] {(byte) gap_type};
-        byte[] ba_gap_start = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(gap_start).array();
-        byte[] ba_gap_range = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(gap_range).array();
-
         // build the complete request value byte array
-        byte[] ba_gap_req_value = new byte[ba_gap_type.length + ba_gap_start.length + ba_gap_range.length];
-        System.arraycopy(ba_gap_type, 0, ba_gap_req_value, 0, ba_gap_type.length);
-        System.arraycopy(ba_gap_start, 0, ba_gap_req_value, ba_gap_type.length, ba_gap_start.length);
-        System.arraycopy(ba_gap_range, 0, ba_gap_req_value, ba_gap_type.length + ba_gap_start.length, ba_gap_range.length);
+        byte[] ba_gap_req_value = gapRequestBuffer
+                .put((byte) gap_type)
+                .putInt(gap_start)
+                .putInt(gap_range)
+                .array();
+        gapRequestBuffer.clear();
 
         // send the request
         logger.info("Biovotion VSM GAP new request, value: {}",  bytesToHex(ba_gap_req_value));
