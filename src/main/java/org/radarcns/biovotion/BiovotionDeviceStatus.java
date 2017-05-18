@@ -46,6 +46,8 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
 
     private float[] acceleration = {Float.NaN, Float.NaN, Float.NaN};
 
+    private float[] ppgRaw = {Float.NaN, Float.NaN, Float.NaN, Float.NaN};
+
     private float[] ledCurrent = {Float.NaN, Float.NaN, Float.NaN, Float.NaN};
 
     public static final Parcelable.Creator<BiovotionDeviceStatus> CREATOR = new DeviceStateCreator<>(BiovotionDeviceStatus.class);
@@ -77,6 +79,10 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
         dest.writeFloat(this.acceleration[0]);
         dest.writeFloat(this.acceleration[1]);
         dest.writeFloat(this.acceleration[2]);
+        dest.writeFloat(this.ppgRaw[0]);
+        dest.writeFloat(this.ppgRaw[1]);
+        dest.writeFloat(this.ppgRaw[2]);
+        dest.writeFloat(this.ppgRaw[3]);
         dest.writeFloat(this.ledCurrent[0]);
         dest.writeFloat(this.ledCurrent[1]);
         dest.writeFloat(this.ledCurrent[2]);
@@ -109,6 +115,10 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
         acceleration[0] = in.readFloat();
         acceleration[1] = in.readFloat();
         acceleration[2] = in.readFloat();
+        ppgRaw[0] = in.readFloat();
+        ppgRaw[1] = in.readFloat();
+        ppgRaw[2] = in.readFloat();
+        ppgRaw[3] = in.readFloat();
         ledCurrent[0] = in.readFloat();
         ledCurrent[1] = in.readFloat();
         ledCurrent[2] = in.readFloat();
@@ -153,6 +163,10 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
     }
     public float[] getAcceleration() {
         return acceleration;
+    }
+
+    public float[] getPhotoRaw() {
+        return ppgRaw;
     }
 
     public float[] getLedCurrent() {
@@ -217,6 +231,13 @@ public class BiovotionDeviceStatus extends BaseDeviceState {
         this.acceleration[0] = x / (float)Math.pow(2, 12);
         this.acceleration[1] = y / (float)Math.pow(2, 12);
         this.acceleration[2] = z / (float)Math.pow(2, 12);
+    }
+
+    public void setPhotoRaw(float red, float green, float ir, float dark) {
+        this.ppgRaw[0] = red;
+        this.ppgRaw[1] = green;
+        this.ppgRaw[2] = ir;
+        this.ppgRaw[3] = dark;
     }
 
     public void setLedCurrent(float red, float green, float ir, float offset) {

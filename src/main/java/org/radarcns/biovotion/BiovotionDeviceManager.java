@@ -92,6 +92,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private final DataCache<MeasurementKey, BiovotionVSMTemperature> temperatureTable;
     private final DataCache<MeasurementKey, BiovotionVSMGalvanicSkinResponse> gsrTable;
     private final DataCache<MeasurementKey, BiovotionVSMAcceleration> accelerationTable;
+    private final DataCache<MeasurementKey, BiovotionVSMPhotoRaw> ppgRawTable;
     private final DataCache<MeasurementKey, BiovotionVSMLedCurrent> ledCurrentTable;
     private final AvroTopic<MeasurementKey, BiovotionVSMBatteryState> batteryTopic;
 
@@ -123,8 +124,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private int gap_stat = -1;              // current GAP status
 
     private Deque<BiovotionVSMAcceleration> gap_raw_stack_acc;
+    private Deque<BiovotionVSMPhotoRaw> gap_raw_stack_ppg;
     private Deque<BiovotionVSMLedCurrent> gap_raw_stack_led_current;
-    //private Deque<BiovotionVSM> gap_raw_stack_led;
 
     private ScheduledFuture<?> utcFuture;
     private final ByteBuffer utcBuffer;
@@ -171,6 +172,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         this.temperatureTable = dataHandler.getCache(topics.getTemperatureTopic());
         this.gsrTable = dataHandler.getCache(topics.getGsrTopic());
         this.accelerationTable = dataHandler.getCache(topics.getAccelerationTopic());
+        this.ppgRawTable = dataHandler.getCache(topics.getPhotoRawTopic());
         this.ledCurrentTable = dataHandler.getCache(topics.getLedCurrentTopic());
         this.batteryTopic = topics.getBatteryStateTopic();
 
@@ -182,6 +184,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         this.executor = Executors.newSingleThreadScheduledExecutor();
 
         this.gap_raw_stack_acc = new ArrayDeque<>(1024);
+        this.gap_raw_stack_ppg = new ArrayDeque<>(1024);
         this.gap_raw_stack_led_current = new ArrayDeque<>(1024);
 
         this.gapRequestBuffer = ByteBuffer.allocate(9).order(ByteOrder.LITTLE_ENDIAN);
@@ -708,18 +711,25 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
                     //logger.info("Biovotion VSM RawAlgo: red:{} | green:{} | ir:{} | dark:{}", i.red, i.green, i.ir, i.dark);
                     //logger.info("Biovotion VSM RawAlgo: x:{} | y:{} | z:{} | @:{}", i.x, i.y, i.z, (double) unit.timestamp);
                     deviceStatus.setAcceleration(i.x, i.y, i.z);
+                    deviceStatus.setPhotoRaw(i.red, i.green, i.ir, i.dark);
                     float[] latestAcc = deviceStatus.getAcceleration();
+                    float[] latestPPG = deviceStatus.getPhotoRaw();
 
                     BiovotionVSMAcceleration accValue = new BiovotionVSMAcceleration((double) unit.timestamp, System.currentTimeMillis() / 1000d,
                             latestAcc[0], latestAcc[1], latestAcc[2]);
+                    BiovotionVSMPhotoRaw ppgValue = new BiovotionVSMPhotoRaw((double) unit.timestamp, System.currentTimeMillis() / 1000d,
+                            latestPPG[0], latestPPG[1], latestPPG[2], latestPPG[3]);
 
                     // add measurements to a stack as long as new measurements are older. if a newer measurement is added, empty the stack into accelerationTable and start over
+                    // since acc and ppg raw data always arrive in the same unit, can just check for one and empty both
                     if (gap_raw_stack_acc.peekFirst() != null && accValue.getTime() > gap_raw_stack_acc.peekFirst().getTime()) {
                         while (!gap_raw_stack_acc.isEmpty()) {
                             dataHandler.addMeasurement(accelerationTable, deviceStatus.getId(), gap_raw_stack_acc.removeFirst());
+                            dataHandler.addMeasurement(ppgRawTable, deviceStatus.getId(), gap_raw_stack_ppg.removeFirst());
                         }
                     }
                     gap_raw_stack_acc.addFirst(accValue);
+                    gap_raw_stack_ppg.addFirst(ppgValue);
 
                     gap_raw_since_last++;
                 }
