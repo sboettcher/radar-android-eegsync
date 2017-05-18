@@ -41,9 +41,11 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
-import java.util.Date;
 import java.util.Deque;
+import java.util.GregorianCalendar;
+import java.util.Locale;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -462,9 +464,10 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
         // read device UTC time
         else if (p.id() == VsmConstants.PID_UTC) {
-            Date date = new Date(p.valueAsInteger() * 1000L);
-            SimpleDateFormat datef = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z");
-            logger.info("Biovotion VSM device UTC timestamp is: {} ({})", p.valueAsInteger(), datef.format(date));
+            GregorianCalendar date = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.US);
+            date.setTimeInMillis(p.valueAsInteger() * 1000L);
+            SimpleDateFormat datef = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US);
+            logger.info("Biovotion VSM device Unix timestamp is: {} ({})", p.valueAsInteger(), datef.format(date.getTime()));
             //Boast.makeText(context, "Biovotion device UTC: " + p.valueAsInteger(), Toast.LENGTH_LONG).show();
         }
 
