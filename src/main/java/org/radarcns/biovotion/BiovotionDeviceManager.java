@@ -44,9 +44,11 @@ import java.util.ArrayDeque;
 import java.util.Date;
 import java.util.Deque;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import ch.hevs.biovotion.vsm.ble.scanner.VsmDiscoveryListener;
 import ch.hevs.biovotion.vsm.ble.scanner.VsmScanner;
@@ -106,7 +108,9 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private BluetoothAdapter vsmBluetoothAdapter;
     private BleService vsmBleService;
 
-    private ScheduledThreadPoolExecutor gapExecutor;
+    private final ScheduledExecutorService executor;
+
+    private ScheduledFuture<?> gapFuture;
     private int gap_raw_last_cnt = -1;      // latest counter index from last GAP request
     private int gap_raw_last_idx = -1;      // start index from last GAP request
     private int gap_raw_since_last = 0;     // number of records streamed since last GAP request
@@ -119,7 +123,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     private Deque<BiovotionVSMLedCurrent> gap_raw_stack_led_current;
     //private Deque<BiovotionVSM> gap_raw_stack_led;
 
-    private ScheduledThreadPoolExecutor utcExecutor;
+    private ScheduledFuture<?> utcFuture;
 
     // Code to manage Service lifecycle.
     private boolean bleServiceConnectionIsBound;
@@ -171,8 +175,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
         this.bleServiceConnectionIsBound = false;
 
-        this.gapExecutor = new ScheduledThreadPoolExecutor(1);
-        this.utcExecutor = new ScheduledThreadPoolExecutor(1);
+        this.executor = Executors.newSingleThreadScheduledExecutor();
 
         this.gap_raw_stack_acc = new ArrayDeque<>(1024);
         this.gap_raw_stack_led_current = new ArrayDeque<>(1024);
@@ -189,7 +192,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
 
 
     public void close() {
-        if (gapExecutor != null) gapExecutor.shutdownNow();
+        executor.shutdown();
 
         synchronized (this) {
             if (this.isClosed) {
@@ -226,8 +229,15 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             this.isClosed = false;
         }
 
+        if (gapFuture != null) {
+            gapFuture.cancel(false);
+        }
+        if (utcFuture != null) {
+            utcFuture.cancel(false);
+        }
+
         // schedule new gap request or checking gap running status
-        gapExecutor.scheduleAtFixedRate(new Runnable() {
+        gapFuture = executor.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 if (isConnected) {
@@ -237,7 +247,7 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         }, VsmConstants.GAP_INTERVAL_MS, VsmConstants.GAP_INTERVAL_MS, TimeUnit.MILLISECONDS);
 
         // schedule new gap request or checking gap running status
-        utcExecutor.scheduleAtFixedRate(new Runnable() {
+        utcFuture = executor.scheduleAtFixedRate(new Runnable() {
             @Override
             public void run() {
                 if (isConnected) {
