@@ -204,6 +204,15 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     public void close() {
         executor.shutdown();
 
+        // empty remaining records from raw data stacks
+        while (!gap_raw_stack_acc.isEmpty()) {
+            dataHandler.addMeasurement(accelerationTable, deviceStatus.getId(), gap_raw_stack_acc.removeFirst());
+            dataHandler.addMeasurement(ppgRawTable, deviceStatus.getId(), gap_raw_stack_ppg.removeFirst());
+        }
+        while (!gap_raw_stack_led_current.isEmpty()) {
+            dataHandler.addMeasurement(ledCurrentTable, deviceStatus.getId(), gap_raw_stack_led_current.removeFirst());
+        }
+
         synchronized (this) {
             if (this.isClosed) {
                 return;
