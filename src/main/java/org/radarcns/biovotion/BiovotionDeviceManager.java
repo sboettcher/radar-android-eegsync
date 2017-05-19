@@ -214,9 +214,8 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
         if (vsmScanner != null && vsmScanner.isScanning()) vsmScanner.stopScanning();
         if (vsmDevice != null && vsmDevice.isConnected()) vsmDevice.disconnect();
         if (vsmBleService != null && vsmBleService.connectionState() == BleServiceObserver.ConnectionState.GATT_CONNECTED) vsmBleService.disconnect();
-        if (deviceStatus.getStatus() != DeviceStatusListener.Status.DISCONNECTED) {
-            updateStatus(DeviceStatusListener.Status.DISCONNECTED);
-        }
+
+        updateStatus(DeviceStatusListener.Status.DISCONNECTED);
     }
 
 
@@ -302,6 +301,9 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
     }
 
     private synchronized void updateStatus(DeviceStatusListener.Status status) {
+        if (status == deviceStatus.getStatus()) return;
+        this.deviceStatus.setStatus(status);
+
         if (status == DeviceStatusListener.Status.DISCONNECTED && bleServiceConnectionIsBound) {
             context.unbindService(bleServiceConnection);
             bleServiceConnectionIsBound = false;
@@ -320,7 +322,6 @@ public class BiovotionDeviceManager implements DeviceManager, VsmDeviceListener,
             }
         }
 
-        this.deviceStatus.setStatus(status);
         this.biovotionService.deviceStatusUpdated(this, status);
     }
 
