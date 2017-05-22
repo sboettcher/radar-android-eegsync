@@ -1,14 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.radarcns.biovotion" >
-    <uses-feature android:name="android.hardware.bluetooth"/>
-    <uses-feature android:name="android.hardware.bluetooth_le"/>
-
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+    package="org.radarcns.eegsync" >
 
     <application android:allowBackup="true">
-        <service android:name="org.radarcns.biovotion.BiovotionService"/>
+        <service android:name="org.radarcns.eegsync.EEGSyncService"/>
     </application>
 </manifest>

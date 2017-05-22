@@ -14,46 +14,34 @@
  * limitations under the License.
  */
 
-package org.radarcns.biovotion;
+package org.radarcns.eegsync;
 
 import android.os.Parcelable;
 
 import org.radarcns.android.device.DeviceServiceProvider;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
-import static android.Manifest.permission.BLUETOOTH;
-import static android.Manifest.permission.BLUETOOTH_ADMIN;
 
-public class BiovotionServiceProvider extends DeviceServiceProvider<BiovotionDeviceStatus> {
+public class EEGSyncProvider extends DeviceServiceProvider<EEGSyncStatus> {
     @Override
     public Class<?> getServiceClass() {
-        return BiovotionService.class;
+        return EEGSyncService.class;
     }
 
     @Override
-    public Parcelable.Creator<BiovotionDeviceStatus> getStateCreator() {
-        return BiovotionDeviceStatus.CREATOR;
-    }
-
-    @Override
-    public boolean hasDetailView() {
-        return true;
-    }
-
-    public void showDetailView() {
-        new BiovotionHeartbeatToast(getActivity()).execute(getConnection());
+    public Parcelable.Creator<EEGSyncStatus> getStateCreator() {
+        return EEGSyncStatus.CREATOR;
     }
 
     @Override
     public List<String> needsPermissions() {
-        return Arrays.asList(ACCESS_COARSE_LOCATION, BLUETOOTH, BLUETOOTH_ADMIN);
+        return Collections.emptyList();
     }
 
     @Override
     public String getDisplayName() {
-        return getActivity().getString(R.string.biovotionLabel);
+        return getActivity().getString(R.string.eegsyncLabel);
     }
 }

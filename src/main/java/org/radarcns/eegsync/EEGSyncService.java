@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.radarcns.biovotion;
+package org.radarcns.eegsync;
 
 import org.radarcns.android.device.BaseDeviceState;
 import org.radarcns.android.device.DeviceManager;
@@ -24,29 +24,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A service that manages a BiovotionDeviceManager and a TableDataHandler to send store the data of a
- * Biovotion VSM and send it to a Kafka REST proxy.
+ * A service that manages a EEGSyncManager and a TableDataHandler to send store the data of the
+ * EEG synchronization and send it to a Kafka REST proxy.
  */
-public class BiovotionService extends DeviceService {
-    private static final Logger logger = LoggerFactory.getLogger(BiovotionService.class);
-    private BiovotionTopics topics;
+public class EEGSyncService extends DeviceService {
+    private static final Logger logger = LoggerFactory.getLogger(EEGSyncService.class);
+    private EEGSyncTopics topics;
 
     @Override
     public void onCreate() {
-        logger.info("Creating Biovotion VSM service {}", this);
+        logger.info("Creating EEG synchronization service {}", this);
         super.onCreate();
 
-        topics = BiovotionTopics.getInstance();
+        topics = EEGSyncTopics.getInstance();
     }
 
     @Override
     protected DeviceManager createDeviceManager() {
-        return new BiovotionDeviceManager(this, this, getUserId(), getDataHandler(), topics);
+        return new EEGSyncManager(this, this, getUserId(), getDataHandler(), topics);
     }
 
     @Override
     protected BaseDeviceState getDefaultState() {
-        return new BiovotionDeviceStatus();
+        return new EEGSyncStatus();
     }
 
     @Override
