@@ -26,19 +26,22 @@ import org.radarcns.android.device.DeviceStateCreator;
  * The status on a single point in time of the EEG synchronization.
  */
 public class EEGSyncStatus extends BaseDeviceState {
-
+    private float pulseWidth = Float.NaN;
+    private float pulseDelay = Float.NaN;
 
     public static final Parcelable.Creator<EEGSyncStatus> CREATOR = new DeviceStateCreator<>(EEGSyncStatus.class);
 
     @Override
     public synchronized void writeToParcel(Parcel dest, int flags) {
         super.writeToParcel(dest, flags);
-
+        dest.writeFloat(this.pulseWidth);
+        dest.writeFloat(this.pulseDelay);
     }
 
     public void updateFromParcel(Parcel in) {
         super.updateFromParcel(in);
-
+        pulseWidth = in.readFloat();
+        pulseDelay = in.readFloat();
     }
 
 
@@ -46,7 +49,9 @@ public class EEGSyncStatus extends BaseDeviceState {
      * getter
      */
 
+    public float getPulseWidth() { return pulseWidth; }
 
+    public float getPulseDelay() { return pulseDelay; }
 
 
 
@@ -54,5 +59,11 @@ public class EEGSyncStatus extends BaseDeviceState {
      * setter
      */
 
+    public void setPulseWidth(float width) {
+        this.pulseWidth = width;
+    }
 
+    public void setPulseDelay(float delay) {
+        this.pulseDelay = delay;
+    }
 }

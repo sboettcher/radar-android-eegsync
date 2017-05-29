@@ -129,7 +129,7 @@ public class EEGSyncManager implements DeviceManager {
                     } catch (InterruptedException ex) {
                         ex.printStackTrace();
                     }
-                    sync_pulse(delay_ms);
+                    sync_pulse(PULSE_WIDTH_MS, delay_ms);
                 }
             }
         });
@@ -185,21 +185,26 @@ public class EEGSyncManager implements DeviceManager {
 
 
 
-    public void sync_pulse(int delay_ms) {
-        logger.info("EEG sync sending {}ms pulse after a delay of {}ms.", PULSE_WIDTH_MS, delay_ms);
+    public void sync_pulse(int width_ms, int delay_ms) {
+        logger.info("EEG sync sending {}ms pulse after a delay of {}ms.", width_ms, delay_ms);
         double stamp = System.currentTimeMillis() / 1000d;
 
         try {
             FileOutputStream fos = new FileOutputStream(new File(GPIO_FILE_PATH), false);
             fos.write(49);
-            SystemClock.sleep(PULSE_WIDTH_MS);
+            SystemClock.sleep(width_ms);
             fos.write(48);
             fos.close();
         } catch (java.io.IOException ex) {
             ex.printStackTrace();
         }
 
-        EEGSyncPulse pulse = new EEGSyncPulse(stamp, System.currentTimeMillis() / 1000d);
+        deviceStatus.setPulseWidth(width_ms);
+        deviceStatus.setPulseDelay(delay_ms);
+        float latestWidth = deviceStatus.getPulseWidth();
+        float latestDelay = deviceStatus.getPulseDelay();
+
+        EEGSyncPulse pulse = new EEGSyncPulse(stamp, System.currentTimeMillis() / 1000d, latestWidth, latestDelay);
         dataHandler.addMeasurement(eegSyncPulseTable, deviceStatus.getId(), pulse);
         logger.info("EEG sync pulse sent.");
     }
