@@ -16,7 +16,7 @@
 
 package org.radarcns.eegsync;
 
-import android.os.Parcelable;
+import android.support.annotation.NonNull;
 
 import org.radarcns.android.device.DeviceServiceProvider;
 
@@ -26,18 +26,37 @@ import java.util.List;
 
 public class EEGSyncProvider extends DeviceServiceProvider<EEGSyncStatus> {
     @Override
+    public String getDescription() {
+        return getActivity().getString(R.string.eegsyncDescription);
+    }
+
+    @Override
     public Class<?> getServiceClass() {
         return EEGSyncService.class;
     }
 
-    @Override
-    public Parcelable.Creator<EEGSyncStatus> getStateCreator() {
-        return EEGSyncStatus.CREATOR;
-    }
 
     @Override
     public List<String> needsPermissions() {
         return Collections.emptyList();
+    }
+
+    @NonNull
+    @Override
+    public String getDeviceProducer() {
+        return "EEGSync";
+        }
+
+    @NonNull
+    @Override
+    public String getDeviceModel() {
+        return "GPIO177";
+    }
+
+    @NonNull
+    @Override
+    public String getVersion() {
+        return BuildConfig.VERSION_NAME;
     }
 
     @Override

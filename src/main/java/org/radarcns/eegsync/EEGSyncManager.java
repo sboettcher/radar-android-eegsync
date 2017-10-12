@@ -16,22 +16,21 @@
 
 package org.radarcns.eegsync;
 
-import android.content.Context;
 import android.os.SystemClock;
 import android.support.annotation.NonNull;
 
-import org.radarcns.android.RadarConfiguration;
 import org.radarcns.android.data.DataCache;
-import org.radarcns.android.data.TableDataHandler;
-import org.radarcns.android.device.DeviceManager;
+import org.radarcns.android.device.AbstractDeviceManager;
 import org.radarcns.android.device.DeviceStatusListener;
-import org.radarcns.key.MeasurementKey;
+import org.radarcns.kafka.ObservationKey;
+import org.radarcns.passive.eegsync.EegSyncPulse;
 import org.radarcns.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,26 +38,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
-import static org.radarcns.android.RadarConfiguration.SOURCE_ID_KEY;
-
-//import android.widget.Toast;
-//import org.radarcns.android.util.Boast;
 
 /** Manages EEG synchronization pulses */
-public class EEGSyncManager implements DeviceManager {
+public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyncStatus> {
     private static final Logger logger = LoggerFactory.getLogger(EEGSyncManager.class);
 
-    private final TableDataHandler dataHandler;
-    private final Context context;
-    private final DeviceStatusListener eegSyncService;
-
-    private final DataCache<MeasurementKey, EEGSyncPulse> eegSyncPulseTable;
-
-    private final EEGSyncStatus deviceStatus;
-
-    private boolean isClosed;
-    private String deviceName;
     private Pattern[] acceptableIds;
+    private final DataCache<ObservationKey, EegSyncPulse> eegSyncPulseTable;
 
     private final ExecutorService executor;
     private Future<?> pulseFuture;
@@ -70,40 +56,25 @@ public class EEGSyncManager implements DeviceManager {
     private static final int MAX_DELAY_MS = 1500;
 
 
-    public EEGSyncManager(Context context, DeviceStatusListener eegSyncService, String groupId, TableDataHandler handler, EEGSyncTopics topics) {
-        this.dataHandler = handler;
-        this.eegSyncPulseTable = dataHandler.getCache(topics.getEegSyncPulseTopic());
-
-        this.eegSyncService = eegSyncService;
-        this.context = context;
+    public EEGSyncManager(EEGSyncService service) {
+        super(service);
+        EEGSyncTopics topics = service.getTopics();
+        this.eegSyncPulseTable = getCache(topics.getEegSyncPulseTopic());
 
         this.executor = Executors.newSingleThreadExecutor();
-
-        synchronized (this) {
-            this.deviceStatus = new EEGSyncStatus();
-            setIDs(groupId, RadarConfiguration.getOrSetUUID(this.context.getApplicationContext(), SOURCE_ID_KEY));
-            this.deviceStatus.getId().setUserId(groupId);
-            this.deviceName = null;
-            this.isClosed = true;
-            this.acceptableIds = null;
-        }
     }
 
 
-    public void close() {
-        synchronized (this) {
-            if (this.isClosed) {
-                return;
-            }
-            logger.info("EEG sync closing device {}", deviceName);
-            this.isClosed = true;
+    @Override
+    public void close() throws IOException {
+        if (isClosed()) {
+            return;
         }
+        super.close();
+        logger.info("EEG sync closing device {}", this);
 
         executor.shutdown();
-
-        updateStatus(DeviceStatusListener.Status.DISCONNECTED);
     }
-
 
     /*
      * DeviceManager interface
@@ -115,14 +86,13 @@ public class EEGSyncManager implements DeviceManager {
 
         synchronized (this) {
             this.acceptableIds = Strings.containsPatterns(acceptableIds);
-            this.isClosed = false;
         }
 
         // schedule new eeg sync pulse
         pulseFuture = executor.submit(new Runnable() {
             @Override
             public void run() {
-                while (!isClosed) {
+                while (isClosed()) {
                     int delay_ms = ThreadLocalRandom.current().nextInt(MIN_DELAY_MS, MAX_DELAY_MS + 1);
                     try {
                         Thread.sleep(delay_ms);
@@ -137,56 +107,15 @@ public class EEGSyncManager implements DeviceManager {
         updateStatus(DeviceStatusListener.Status.CONNECTED);
     }
 
-    @Override
-    public synchronized boolean isClosed() {
-        return isClosed;
+
+    protected synchronized void updateStatus(DeviceStatusListener.Status status) {
+        if (status == getState().getStatus()) return;
+
+        super.updateStatus(status);
     }
-
-    @Override
-    public EEGSyncStatus getState() {
-        return deviceStatus;
-    }
-
-    @Override
-    public synchronized String getName() {
-        return deviceName;
-    }
-
-    @Override
-    public synchronized boolean equals(Object other) {
-        return other == this
-                || other != null && getClass().equals(other.getClass())
-                && deviceStatus.getId().getSourceId() != null
-                && deviceStatus.getId().equals(((EEGSyncManager) other).deviceStatus.getId());
-    }
-
-    @Override
-    public int hashCode() {
-        return deviceStatus.getId().hashCode();
-    }
-
-    private synchronized void updateStatus(DeviceStatusListener.Status status) {
-        if (status == deviceStatus.getStatus()) return;
-        this.deviceStatus.setStatus(status);
-
-        this.eegSyncService.deviceStatusUpdated(this, status);
-    }
-
-    public void setIDs(String userId, String sourceId) {
-        if (this.deviceStatus.getId().getUserId() == null) {
-            this.deviceStatus.getId().setUserId(userId);
-        }
-        if (this.deviceStatus.getId().getSourceId() == null) {
-            this.deviceStatus.getId().setSourceId(sourceId);
-        }
-    }
-
-
-
-
 
     public void sync_pulse(int width_ms, int delay_ms) {
-        logger.info("EEG sync sending {}ms pulse after a delay of {}ms.", width_ms, delay_ms);
+        logger.debug("EEG sync sending {}ms pulse after a delay of {}ms.", width_ms, delay_ms);
         double stamp = System.currentTimeMillis() / 1000d;
 
         try {
@@ -199,14 +128,19 @@ public class EEGSyncManager implements DeviceManager {
             ex.printStackTrace();
         }
 
-        deviceStatus.setPulseWidth(width_ms);
-        deviceStatus.setPulseDelay(delay_ms);
-        float latestWidth = deviceStatus.getPulseWidth();
-        float latestDelay = deviceStatus.getPulseDelay();
+        getState().setPulseWidth(width_ms);
+        getState().setPulseDelay(delay_ms);
+        float latestWidth = getState().getPulseWidth();
+        float latestDelay = getState().getPulseDelay();
 
-        EEGSyncPulse pulse = new EEGSyncPulse(stamp, System.currentTimeMillis() / 1000d, latestWidth, latestDelay);
-        dataHandler.addMeasurement(eegSyncPulseTable, deviceStatus.getId(), pulse);
-        logger.info("EEG sync pulse sent.");
+        EegSyncPulse pulse = new EegSyncPulse(stamp, System.currentTimeMillis() / 1000d, latestWidth, latestDelay);
+        send(eegSyncPulseTable, pulse);
+        logger.debug("EEG sync pulse sent.");
+    }
+
+    @Override
+    protected void registerDeviceAtReady() {
+        // custom registration
     }
 
 }

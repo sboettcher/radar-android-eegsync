@@ -1,3 +1,6 @@
 <resources>
     <string name="eegsyncLabel">EEG sync</string>
+    <string name="eegsyncDescription">Sends trigger pulses vio GPIO to an EEG monitoring system.
+        Can be used for synchronization with an EEG and/or video signal.
+    </string>
 </resources>

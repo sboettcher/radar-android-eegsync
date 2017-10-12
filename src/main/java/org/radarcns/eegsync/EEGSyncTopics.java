@@ -17,12 +17,13 @@
 package org.radarcns.eegsync;
 
 import org.radarcns.android.device.DeviceTopics;
+import org.radarcns.passive.eegsync.EegSyncPulse;
 import org.radarcns.topic.AvroTopic;
-import org.radarcns.key.MeasurementKey;
+import org.radarcns.kafka.ObservationKey;
 
 /** Topic manager for topics concerning the EEG Synchronization. */
 public class EEGSyncTopics extends DeviceTopics {
-    private final AvroTopic<MeasurementKey, EEGSyncPulse> eegSyncPulseTopic;
+    private final AvroTopic<ObservationKey, EegSyncPulse> eegSyncPulseTopic;
 
     private static final Object syncObject = new Object();
     private static EEGSyncTopics instance = null;
@@ -38,11 +39,11 @@ public class EEGSyncTopics extends DeviceTopics {
 
     private EEGSyncTopics() {
         eegSyncPulseTopic = createTopic("android_eeg_sync_pulse",
-                EEGSyncPulse.getClassSchema(),
-                EEGSyncPulse.class);
+                EegSyncPulse.getClassSchema(),
+                EegSyncPulse.class);
     }
 
-    public AvroTopic<MeasurementKey, EEGSyncPulse> getEegSyncPulseTopic() {
+    public AvroTopic<ObservationKey, EegSyncPulse> getEegSyncPulseTopic() {
         return eegSyncPulseTopic;
     }
 }
