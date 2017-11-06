@@ -27,7 +27,7 @@ import java.util.List;
 public class EEGSyncProvider extends DeviceServiceProvider<EEGSyncStatus> {
     @Override
     public String getDescription() {
-        return getActivity().getString(R.string.eegsyncDescription);
+        return getRadarService().getString(R.string.eegsyncDescription);
     }
 
     @Override
@@ -61,6 +61,6 @@ public class EEGSyncProvider extends DeviceServiceProvider<EEGSyncStatus> {
 
     @Override
     public String getDisplayName() {
-        return getActivity().getString(R.string.eegsyncLabel);
+        return getRadarService().getString(R.string.eegsyncLabel);
     }
 }

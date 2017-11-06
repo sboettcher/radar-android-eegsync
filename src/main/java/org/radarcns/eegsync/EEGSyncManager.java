@@ -24,6 +24,7 @@ import org.radarcns.android.device.AbstractDeviceManager;
 import org.radarcns.android.device.DeviceStatusListener;
 import org.radarcns.kafka.ObservationKey;
 import org.radarcns.passive.eegsync.EegSyncPulse;
+import org.radarcns.topic.AvroTopic;
 import org.radarcns.util.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,8 +44,8 @@ import java.util.regex.Pattern;
 public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyncStatus> {
     private static final Logger logger = LoggerFactory.getLogger(EEGSyncManager.class);
 
-    private Pattern[] acceptableIds;
-    private final DataCache<ObservationKey, EegSyncPulse> eegSyncPulseTable;
+    private Pattern[] accepTopicIds;
+    private final AvroTopic<ObservationKey, EegSyncPulse> eegSyncPulseTopic;
 
     private final ExecutorService executor;
     private Future<?> pulseFuture;
@@ -58,8 +59,7 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
 
     public EEGSyncManager(EEGSyncService service) {
         super(service);
-        EEGSyncTopics topics = service.getTopics();
-        this.eegSyncPulseTable = getCache(topics.getEegSyncPulseTopic());
+        this.eegSyncPulseTopic = createTopic("android_eeg_sync_pulse", EegSyncPulse.class);
 
         this.executor = Executors.newSingleThreadExecutor();
     }
@@ -81,11 +81,11 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
      */
 
     @Override
-    public void start(@NonNull final Set<String> acceptableIds) {
+    public void start(@NonNull final Set<String> accepTopicIds) {
         logger.info("EEG sync starting.");
 
         synchronized (this) {
-            this.acceptableIds = Strings.containsPatterns(acceptableIds);
+            this.accepTopicIds = Strings.containsPatterns(accepTopicIds);
         }
 
         // schedule new eeg sync pulse
@@ -134,7 +134,7 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
         float latestDelay = getState().getPulseDelay();
 
         EegSyncPulse pulse = new EegSyncPulse(stamp, System.currentTimeMillis() / 1000d, latestWidth, latestDelay);
-        send(eegSyncPulseTable, pulse);
+        send(eegSyncPulseTopic, pulse);
         logger.debug("EEG sync pulse sent.");
     }
 

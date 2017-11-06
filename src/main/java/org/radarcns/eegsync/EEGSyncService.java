@@ -32,15 +32,6 @@ import java.util.List;
  */
 public class EEGSyncService extends DeviceService<EEGSyncStatus> {
     private static final Logger logger = LoggerFactory.getLogger(EEGSyncService.class);
-    private EEGSyncTopics topics;
-
-    @Override
-    public void onCreate() {
-        logger.info("Creating EEG synchronization service {}", this);
-        super.onCreate();
-
-        topics = EEGSyncTopics.getInstance();
-    }
 
     @Override
     protected EEGSyncManager createDeviceManager() {
@@ -50,16 +41,5 @@ public class EEGSyncService extends DeviceService<EEGSyncStatus> {
     @Override
     protected EEGSyncStatus getDefaultState() {
         return new EEGSyncStatus();
-    }
-
-    @Override
-    protected List<AvroTopic<ObservationKey, ? extends SpecificRecord>> getCachedTopics() {
-        return Arrays.<AvroTopic<ObservationKey, ? extends SpecificRecord>>asList(
-                topics.getEegSyncPulseTopic());
-    }
-
-    @Override
-    protected EEGSyncTopics getTopics() {
-        return topics;
     }
 }
