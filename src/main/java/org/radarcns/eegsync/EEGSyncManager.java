@@ -18,7 +18,9 @@ package org.radarcns.eegsync;
 
 import android.os.SystemClock;
 import android.support.annotation.NonNull;
+import android.util.ArrayMap;
 
+import org.radarcns.android.auth.AppSource;
 import org.radarcns.android.data.DataCache;
 import org.radarcns.android.device.AbstractDeviceManager;
 import org.radarcns.android.device.DeviceStatusListener;
@@ -32,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -92,7 +95,7 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
         pulseFuture = executor.submit(new Runnable() {
             @Override
             public void run() {
-                while (isClosed()) {
+                while (!isClosed()) {
                     int delay_ms = ThreadLocalRandom.current().nextInt(MIN_DELAY_MS, MAX_DELAY_MS + 1);
                     try {
                         Thread.sleep(delay_ms);
@@ -103,6 +106,10 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
                 }
             }
         });
+
+        setName("EEG Sync");
+
+        updateStatus(DeviceStatusListener.Status.READY);
 
         updateStatus(DeviceStatusListener.Status.CONNECTED);
     }
@@ -141,6 +148,13 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
     @Override
     protected void registerDeviceAtReady() {
         // custom registration
+        super.registerDeviceAtReady();
+    }
+
+    @Override
+    public void didRegister(AppSource source) {
+        super.didRegister(source);
+        getState().getId().setSourceId(source.getSourceId());
     }
 
 }
