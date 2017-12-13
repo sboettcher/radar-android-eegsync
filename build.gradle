@@ -78,12 +78,8 @@ repositories {
 }
 
 dependencies {
-    // needed to work with testCompile -> kafka-clients
-    //compile 'com.android.support:appcompat-v7:22.2.0'
-
-    //compile 'org.radarcns:radar-commons-android:0.3-SNAPSHOT'
-    //compile 'org.radarcns:radar-schemas-commons:0.2-alpha.3-SNAPSHOT'
-    compile project(':commons-android')
+    compile 'org.radarcns:radar-commons-android:0.5.1'
+    compile 'org.radarcns:radar-schemas-commons:0.2.3'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.slf4j:slf4j-simple:1.7.25'
