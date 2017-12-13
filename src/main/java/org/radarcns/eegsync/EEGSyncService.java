@@ -16,41 +16,30 @@
 
 package org.radarcns.eegsync;
 
-import org.radarcns.android.device.BaseDeviceState;
-import org.radarcns.android.device.DeviceManager;
+import org.apache.avro.specific.SpecificRecord;
 import org.radarcns.android.device.DeviceService;
-import org.radarcns.android.device.DeviceTopics;
+import org.radarcns.kafka.ObservationKey;
+import org.radarcns.topic.AvroTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A service that manages a EEGSyncManager and a TableDataHandler to send store the data of the
  * EEG synchronization and send it to a Kafka REST proxy.
  */
-public class EEGSyncService extends DeviceService {
+public class EEGSyncService extends DeviceService<EEGSyncStatus> {
     private static final Logger logger = LoggerFactory.getLogger(EEGSyncService.class);
-    private EEGSyncTopics topics;
 
     @Override
-    public void onCreate() {
-        logger.info("Creating EEG synchronization service {}", this);
-        super.onCreate();
-
-        topics = EEGSyncTopics.getInstance();
+    protected EEGSyncManager createDeviceManager() {
+        return new EEGSyncManager(this);
     }
 
     @Override
-    protected DeviceManager createDeviceManager() {
-        return new EEGSyncManager(this, this, getUserId(), getDataHandler(), topics);
-    }
-
-    @Override
-    protected BaseDeviceState getDefaultState() {
+    protected EEGSyncStatus getDefaultState() {
         return new EEGSyncStatus();
-    }
-
-    @Override
-    protected DeviceTopics getTopics() {
-        return topics;
     }
 }
