@@ -53,6 +53,8 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
     private final ExecutorService executor;
     private Future<?> pulseFuture;
 
+    private FileOutputStream gpioSyncFos;
+
     private static final String GPIO_FILE_PATH = "/sys/class/gpio/gpio177/value";
     private static final int PULSE_WIDTH_MS = 10;
     private static final int STATIC_DELAY_MS = 1000;
@@ -77,6 +79,7 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
         logger.info("EEG sync closing device {}", this);
 
         executor.shutdown();
+        gpioSyncFos.close();
     }
 
     /*
@@ -87,8 +90,20 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
     public void start(@NonNull final Set<String> accepTopicIds) {
         logger.info("EEG sync starting.");
 
+        updateStatus(DeviceStatusListener.Status.READY);
+
+        setName("EEG Sync");
+
         synchronized (this) {
             this.accepTopicIds = Strings.containsPatterns(accepTopicIds);
+        }
+
+        try {
+            gpioSyncFos = new FileOutputStream(new File(GPIO_FILE_PATH), false);
+        } catch (java.io.IOException ex) {
+            logger.error("Unable to open FileOutputStream on {}. Starting EEG sync failed!", GPIO_FILE_PATH);
+            ex.printStackTrace();
+            return;
         }
 
         // schedule new eeg sync pulse
@@ -107,10 +122,6 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
             }
         });
 
-        setName("EEG Sync");
-
-        updateStatus(DeviceStatusListener.Status.READY);
-
         updateStatus(DeviceStatusListener.Status.CONNECTED);
     }
 
@@ -126,12 +137,11 @@ public class EEGSyncManager extends AbstractDeviceManager<EEGSyncService, EEGSyn
         double stamp = System.currentTimeMillis() / 1000d;
 
         try {
-            FileOutputStream fos = new FileOutputStream(new File(GPIO_FILE_PATH), false);
-            fos.write(49);
+            gpioSyncFos.write(49);
             SystemClock.sleep(width_ms);
-            fos.write(48);
-            fos.close();
+            gpioSyncFos.write(48);
         } catch (java.io.IOException ex) {
+            logger.error("Unable to write on FileOutputStream {}!", gpioSyncFos);
             ex.printStackTrace();
         }
 
