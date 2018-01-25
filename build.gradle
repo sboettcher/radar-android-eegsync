@@ -29,9 +29,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
 
             libraryVariants.all { variant ->
-                variant.outputs.each { output ->
+                variant.outputs.all { output ->
                     if (output.outputFile != null && output.outputFile.name.endsWith('.aar')) {
-                        output.outputFile = new File(output.outputFile.parent,
+                        outputFileName = new File(output.outputFile.parent,
                                 "${archivesBaseName}-${android.defaultConfig.versionName}.aar")
                     }
                 }
@@ -81,8 +81,10 @@ dependencies {
     compile 'org.radarcns:radar-commons-android:0.5.1'
     compile 'org.radarcns:radar-schemas-commons:0.2.3'
 
-    testCompile 'junit:junit:4.12'
-    testCompile 'org.slf4j:slf4j-simple:1.7.25'
+    api 'com.android.support:support-v4:27.0.2'
+
+    testImplementation 'junit:junit:4.12'
+    testRuntimeOnly 'org.slf4j:slf4j-simple:1.7.25'
 }
 
 //---------------------------------------------------------------------------//
