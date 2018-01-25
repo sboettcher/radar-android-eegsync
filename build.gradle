@@ -78,8 +78,9 @@ repositories {
 }
 
 dependencies {
-    compile 'org.radarcns:radar-commons-android:0.5.1'
-    compile 'org.radarcns:radar-schemas-commons:0.2.3'
+    //compile 'org.radarcns:radar-commons-android:0.5.1'
+    //compile 'org.radarcns:radar-schemas-commons:0.2.3'
+    api project(':commons-android')
 
     api 'com.android.support:support-v4:27.0.2'
 
